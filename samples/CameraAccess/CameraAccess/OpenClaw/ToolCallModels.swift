@@ -130,7 +130,7 @@ enum ToolDeclarations {
         ],
         "source_type": [
           "type": "string",
-          "enum": ConferenceSourceType.allCases.map(\.rawValue),
+          "enum": ConferenceSourceType.allCases.map { $0.rawValue },
           "description": "Where the entity was detected."
         ],
         "confidence": [
