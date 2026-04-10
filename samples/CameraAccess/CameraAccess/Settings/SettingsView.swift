@@ -16,6 +16,7 @@ struct SettingsView: View {
   @State private var videoStreamingEnabled: Bool = true
   @State private var proactiveNotificationsEnabled: Bool = true
   @State private var showResetConfirmation = false
+  @State private var showConferenceContacts = false
 
   var body: some View {
     NavigationView {
@@ -40,6 +41,9 @@ struct SettingsView: View {
 
         Section(header: Text("Conference Mode"), footer: Text("Conference mode silently watches for badges, cards, booth signage, and slides. It uses a built-in prompt while enabled and shows the latest detection in the stream overlay.")) {
           Toggle("Enable Conference Mode", isOn: $conferenceModeEnabled)
+          Button("View Conference Contacts") {
+            showConferenceContacts = true
+          }
         }
 
         Section(header: Text("OpenClaw"), footer: Text("Connect to an OpenClaw gateway running on your Mac for agentic tool-calling.")) {
@@ -143,6 +147,9 @@ struct SettingsView: View {
       }
       .onAppear {
         loadCurrentValues()
+      }
+      .sheet(isPresented: $showConferenceContacts) {
+        ConferenceContactsView()
       }
     }
   }

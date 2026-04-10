@@ -4,9 +4,12 @@ import XCTest
 @testable import CameraAccess
 
 final class ConferenceModeTests: XCTestCase {
+  private var temporaryDatabaseURLs: [URL] = []
 
   override func tearDown() {
     SettingsManager.shared.resetAll()
+    temporaryDatabaseURLs.forEach { try? FileManager.default.removeItem(at: $0) }
+    temporaryDatabaseURLs.removeAll()
     super.tearDown()
   }
 
@@ -135,6 +138,70 @@ final class ConferenceModeTests: XCTestCase {
     XCTAssertEqual(secondResult, .ignoredDuplicate)
   }
 
+  func testConferenceContactStoreInsertsExtraction() {
+    let store = makeStore()
+    let extraction = ConferenceExtraction(
+      name: "Priya Shah",
+      company: "Northstar Labs",
+      role: "Founder",
+      sourceType: .badge,
+      confidence: 0.9,
+      observedText: "Priya Shah | Northstar Labs",
+      disposition: .accepted,
+      detectedAt: Date(timeIntervalSince1970: 10)
+    )
+
+    let stored = store.upsert(extraction: extraction)
+
+    XCTAssertEqual(stored?.name, "Priya Shah")
+    XCTAssertEqual(store.fetchContacts().count, 1)
+    XCTAssertEqual(store.fetchContacts().first?.enrichmentStatus, .notRequested)
+  }
+
+  func testConferenceContactStoreMergesDuplicateExtraction() {
+    let store = makeStore()
+
+    _ = store.upsert(extraction: ConferenceExtraction(
+      name: "Jordan Kim",
+      company: "Beacon",
+      role: nil,
+      sourceType: .badge,
+      confidence: 0.62,
+      observedText: nil,
+      disposition: .review,
+      detectedAt: Date(timeIntervalSince1970: 10)
+    ))
+
+    let updated = store.upsert(extraction: ConferenceExtraction(
+      name: "Jordan Kim",
+      company: "Beacon",
+      role: "CEO",
+      sourceType: .badge,
+      confidence: 0.91,
+      observedText: "Jordan Kim CEO Beacon",
+      disposition: .accepted,
+      detectedAt: Date(timeIntervalSince1970: 20)
+    ))
+
+    XCTAssertEqual(store.fetchContacts().count, 1)
+    XCTAssertEqual(updated?.role, "CEO")
+    XCTAssertEqual(updated?.disposition, .accepted)
+    XCTAssertEqual(updated?.confidence, 0.91, accuracy: 0.0001)
+  }
+
+  func testConferenceEnrichmentPayloadParserExtractsJSON() {
+    let response = """
+    Here is the result:
+    {"headline":"AI founder building wearable copilots","company_summary":"Northstar Labs builds AI workflow tools.","talking_points":["Ask about conference demos","Mention wearable UX","Follow up on distribution"],"follow_up":"Send a product intro after the event.","confidence_notes":"Role is explicit; company scope inferred from public copy.","source_urls":["https://northstar.example.com"]}
+    """
+
+    let payload = ConferenceEnrichmentClient.parsePayload(from: response)
+
+    XCTAssertEqual(payload.headline, "AI founder building wearable copilots")
+    XCTAssertEqual(payload.talkingPoints.count, 3)
+    XCTAssertEqual(payload.sourceURLs.count, 1)
+  }
+
   private func makeProcessor() -> ConferenceExtractionProcessor {
     ConferenceExtractionProcessor(
       config: ConferenceModeConfig(
@@ -144,5 +211,13 @@ final class ConferenceModeTests: XCTestCase {
         duplicateCooldown: 10
       )
     )
+  }
+
+  private func makeStore() -> ConferenceContactStore {
+    let url = FileManager.default.temporaryDirectory
+      .appendingPathComponent(UUID().uuidString)
+      .appendingPathExtension("sqlite")
+    temporaryDatabaseURLs.append(url)
+    return ConferenceContactStore(databaseURL: url)
   }
 }

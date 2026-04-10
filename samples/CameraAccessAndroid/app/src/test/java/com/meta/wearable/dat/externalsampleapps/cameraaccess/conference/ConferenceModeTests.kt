@@ -124,6 +124,48 @@ class ConferenceModeTests {
         assertEquals(ConferenceExtractionHandlingResult.IgnoredDuplicate, secondResult)
     }
 
+    @Test
+    fun enrichmentParserExtractsStructuredPayload() {
+        val response = """
+            Here is the result:
+            {"headline":"AI founder building wearable copilots","company_summary":"Northstar Labs builds AI workflow tools.","talking_points":["Ask about conference demos","Mention wearable UX"],"follow_up":"Send a short intro after the event.","confidence_notes":"Role is explicit; company details inferred.","source_urls":["https://northstar.example.com"]}
+        """.trimIndent()
+
+        val payload = ConferenceEnrichmentClient.parsePayload(response)
+
+        assertEquals("AI founder building wearable copilots", payload.headline)
+        assertEquals(2, payload.talkingPoints.size)
+        assertEquals(1, payload.sourceUrls.size)
+    }
+
+    @Test
+    fun enrichmentTaskIncludesDetectedContactFields() {
+        val contact = ConferenceContact(
+            id = "1",
+            dedupeKey = "alex|openai|badge",
+            name = "Alex Morgan",
+            company = "OpenAI",
+            role = "Researcher",
+            sourceType = ConferenceSourceType.BADGE,
+            confidence = 0.88,
+            observedText = "Alex Morgan OpenAI",
+            disposition = ConferenceExtractionDisposition.ACCEPTED,
+            firstSeenAtMs = 1L,
+            lastSeenAtMs = 1L,
+            enrichmentStatus = ConferenceEnrichmentStatus.NOT_REQUESTED,
+            enrichment = null,
+            enrichmentError = null,
+            lastEnrichedAtMs = null,
+        )
+
+        val task = ConferenceEnrichmentClient.buildTask(contact)
+
+        assertTrue(task.contains("Alex Morgan"))
+        assertTrue(task.contains("OpenAI"))
+        assertTrue(task.contains("Researcher"))
+        assertTrue(task.contains("badge"))
+    }
+
     private fun makeProcessor(): ConferenceExtractionProcessor {
         return ConferenceExtractionProcessor(
             ConferenceModeConfig(

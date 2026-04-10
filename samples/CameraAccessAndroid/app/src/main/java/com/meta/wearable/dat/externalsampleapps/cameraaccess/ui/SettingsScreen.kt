@@ -34,6 +34,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.meta.wearable.dat.externalsampleapps.cameraaccess.conference.ConferenceContact
+import com.meta.wearable.dat.externalsampleapps.cameraaccess.conference.ConferenceContactStore
 import com.meta.wearable.dat.externalsampleapps.cameraaccess.settings.SettingsManager
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -53,6 +55,8 @@ fun SettingsScreen(
     var videoStreamingEnabled by remember { mutableStateOf(SettingsManager.videoStreamingEnabled) }
     var proactiveNotificationsEnabled by remember { mutableStateOf(SettingsManager.proactiveNotificationsEnabled) }
     var showResetDialog by remember { mutableStateOf(false) }
+    var showConferenceContacts by remember { mutableStateOf(false) }
+    var conferenceContacts by remember { mutableStateOf<List<ConferenceContact>>(emptyList()) }
 
     fun save() {
         SettingsManager.geminiAPIKey = geminiAPIKey.trim()
@@ -137,6 +141,12 @@ fun SettingsScreen(
                     checked = conferenceModeEnabled,
                     onCheckedChange = { conferenceModeEnabled = it },
                 )
+            }
+            TextButton(onClick = {
+                conferenceContacts = ConferenceContactStore.fetchContacts()
+                showConferenceContacts = true
+            }) {
+                Text("View Conference Contacts")
             }
 
             // OpenClaw section
@@ -248,6 +258,14 @@ fun SettingsScreen(
                     Text("Cancel")
                 }
             },
+        )
+    }
+
+    if (showConferenceContacts) {
+        ConferenceContactsSheet(
+            contacts = conferenceContacts,
+            onDismiss = { showConferenceContacts = false },
+            onRefresh = { conferenceContacts = ConferenceContactStore.fetchContacts() },
         )
     }
 }

@@ -17,9 +17,12 @@ class GeminiSessionViewModel: ObservableObject {
   private var toolCallRouter: ToolCallRouter?
   private let audioManager = AudioManager()
   private let eventClient = OpenClawEventClient()
+  private let conferenceStore = ConferenceContactStore.shared
+  private let conferenceEnrichmentClient = ConferenceEnrichmentClient()
   private var lastVideoFrameTime: Date = .distantPast
   private var stateObservation: Task<Void, Never>?
   private var conferenceProcessor = ConferenceExtractionProcessor()
+  private var enrichmentTasks: [String: Task<Void, Never>] = [:]
 
   var streamingMode: StreamingMode = .glasses
   var isConferenceModeEnabled: Bool { SettingsManager.shared.conferenceModeEnabled }
@@ -191,6 +194,8 @@ class GeminiSessionViewModel: ObservableObject {
     eventClient.disconnect()
     toolCallRouter?.cancelAll()
     toolCallRouter = nil
+    enrichmentTasks.values.forEach { $0.cancel() }
+    enrichmentTasks.removeAll()
     audioManager.stopCapture()
     geminiService.disconnect()
     stateObservation?.cancel()
@@ -227,6 +232,9 @@ class GeminiSessionViewModel: ObservableObject {
     case .accepted(let extraction):
       lastConferenceExtraction = extraction
       logConferenceExtraction(extraction, event: "accepted")
+      if let contact = conferenceStore.upsert(extraction: extraction) {
+        scheduleConferenceEnrichmentIfNeeded(for: contact)
+      }
       return buildLocalToolResponse(
         callId: call.id,
         name: call.name,
@@ -235,6 +243,7 @@ class GeminiSessionViewModel: ObservableObject {
     case .review(let extraction):
       lastConferenceExtraction = extraction
       logConferenceExtraction(extraction, event: "review")
+      _ = conferenceStore.upsert(extraction: extraction)
       return buildLocalToolResponse(
         callId: call.id,
         name: call.name,
@@ -275,6 +284,28 @@ class GeminiSessionViewModel: ObservableObject {
       extraction.confidence,
       extraction.observedText ?? ""
     )
+  }
+
+  private func scheduleConferenceEnrichmentIfNeeded(for contact: ConferenceContact) {
+    guard GeminiConfig.isOpenClawConfigured else { return }
+    guard enrichmentTasks[contact.id] == nil else { return }
+    guard conferenceStore.queueEnrichmentIfNeeded(contactID: contact.id) else { return }
+
+    let contactID = contact.id
+    let task = Task(priority: .utility) { [weak self, conferenceEnrichmentClient, conferenceStore] in
+      conferenceStore.markEnrichmentRunning(contactID: contactID)
+      let latestContact = conferenceStore.fetchContact(id: contactID) ?? contact
+      let result = await conferenceEnrichmentClient.enrich(contact: latestContact)
+      switch result {
+      case .success(let payload):
+        conferenceStore.completeEnrichment(contactID: contactID, payload: payload)
+      case .failure(let message):
+        conferenceStore.failEnrichment(contactID: contactID, error: message)
+      }
+      self?.enrichmentTasks.removeValue(forKey: contactID)
+    }
+
+    enrichmentTasks[contactID] = task
   }
 
   private func buildLocalToolResponse(

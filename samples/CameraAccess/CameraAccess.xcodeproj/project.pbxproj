@@ -12,6 +12,11 @@
 		B1C2D3E42F50000100000003 /* ConferenceModeConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1C2D3E42F50000200000003 /* ConferenceModeConfig.swift */; };
 		B1C2D3E42F50000100000004 /* ConferencePrompts.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1C2D3E42F50000200000004 /* ConferencePrompts.swift */; };
 		B1C2D3E42F50000100000005 /* ConferenceModeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1C2D3E42F50000200000005 /* ConferenceModeTests.swift */; };
+		B1C2D3E42F50000100000006 /* ConferenceContact.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1C2D3E42F50000200000006 /* ConferenceContact.swift */; };
+		B1C2D3E42F50000100000007 /* ConferenceContactStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1C2D3E42F50000200000007 /* ConferenceContactStore.swift */; };
+		B1C2D3E42F50000100000008 /* ConferenceEnrichmentClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1C2D3E42F50000200000008 /* ConferenceEnrichmentClient.swift */; };
+		B1C2D3E42F50000100000009 /* ConferenceContactsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1C2D3E42F50000200000009 /* ConferenceContactsView.swift */; };
+		B1C2D3E42F5000010000000A /* libsqlite3.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = B1C2D3E42F5000020000000A /* libsqlite3.tbd */; };
 		8F2D23802E856711002D0588 /* DebugMenuViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F2D237F2E856711002D0588 /* DebugMenuViewModel.swift */; };
 		8F8F00782E8ACB4600A4BDAF /* WearablesViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F8F00772E8ACB4500A4BDAF /* WearablesViewModel.swift */; };
 		8FD96B7F2E6F0A9800F56AB1 /* CameraAccessApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FD96B792E6F0A9800F56AB1 /* CameraAccessApp.swift */; };
@@ -88,6 +93,11 @@
 		B1C2D3E42F50000200000003 /* ConferenceModeConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConferenceModeConfig.swift; sourceTree = "<group>"; };
 		B1C2D3E42F50000200000004 /* ConferencePrompts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConferencePrompts.swift; sourceTree = "<group>"; };
 		B1C2D3E42F50000200000005 /* ConferenceModeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ConferenceModeTests.swift; path = CameraAccessTests/ConferenceModeTests.swift; sourceTree = SOURCE_ROOT; };
+		B1C2D3E42F50000200000006 /* ConferenceContact.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConferenceContact.swift; sourceTree = "<group>"; };
+		B1C2D3E42F50000200000007 /* ConferenceContactStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConferenceContactStore.swift; sourceTree = "<group>"; };
+		B1C2D3E42F50000200000008 /* ConferenceEnrichmentClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConferenceEnrichmentClient.swift; sourceTree = "<group>"; };
+		B1C2D3E42F50000200000009 /* ConferenceContactsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConferenceContactsView.swift; sourceTree = "<group>"; };
+		B1C2D3E42F5000020000000A /* libsqlite3.tbd */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.text-based-dylib-definition; name = libsqlite3.tbd; path = usr/lib/libsqlite3.tbd; sourceTree = SDKROOT; };
 		8F2D237F2E856711002D0588 /* DebugMenuViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugMenuViewModel.swift; sourceTree = "<group>"; };
 		8F8F00772E8ACB4500A4BDAF /* WearablesViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WearablesViewModel.swift; sourceTree = "<group>"; };
 		8FD96B6F2E6F0A9800F56AB1 /* StreamSessionViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamSessionViewModel.swift; sourceTree = "<group>"; };
@@ -145,6 +155,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B1C2D3E42F5000010000000A /* libsqlite3.tbd in Frameworks */,
 				9DD6CB0C2F3C648800ED7098 /* WebRTC in Frameworks */,
 				8FD96B952E6F0F7D00F56AB1 /* MWDATCore in Frameworks */,
 				9DD6CAFE2F3C62DA00ED7098 /* WebRTC in Frameworks */,
@@ -177,6 +188,7 @@
 		8F2A14F12DDBCEB900D4E5F2 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				B1C2D3E42F5000020000000A /* libsqlite3.tbd */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -188,6 +200,10 @@
 				B1C2D3E42F50000200000002 /* ConferenceExtractionProcessor.swift */,
 				B1C2D3E42F50000200000003 /* ConferenceModeConfig.swift */,
 				B1C2D3E42F50000200000004 /* ConferencePrompts.swift */,
+				B1C2D3E42F50000200000006 /* ConferenceContact.swift */,
+				B1C2D3E42F50000200000007 /* ConferenceContactStore.swift */,
+				B1C2D3E42F50000200000008 /* ConferenceEnrichmentClient.swift */,
+				B1C2D3E42F50000200000009 /* ConferenceContactsView.swift */,
 			);
 			path = iPhone/ConferenceMode;
 			sourceTree = "<group>";
@@ -424,6 +440,10 @@
 				B1C2D3E42F50000100000002 /* ConferenceExtractionProcessor.swift in Sources */,
 				B1C2D3E42F50000100000003 /* ConferenceModeConfig.swift in Sources */,
 				B1C2D3E42F50000100000004 /* ConferencePrompts.swift in Sources */,
+				B1C2D3E42F50000100000006 /* ConferenceContact.swift in Sources */,
+				B1C2D3E42F50000100000007 /* ConferenceContactStore.swift in Sources */,
+				B1C2D3E42F50000100000008 /* ConferenceEnrichmentClient.swift in Sources */,
+				B1C2D3E42F50000100000009 /* ConferenceContactsView.swift in Sources */,
 				8FD96B7F2E6F0A9800F56AB1 /* CameraAccessApp.swift in Sources */,
 				8FD96B812E6F0A9800F56AB1 /* HomeScreenView.swift in Sources */,
 				8F2D23802E856711002D0588 /* DebugMenuViewModel.swift in Sources */,

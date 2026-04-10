@@ -7,6 +7,9 @@ import androidx.lifecycle.viewModelScope
 import com.meta.wearable.dat.externalsampleapps.cameraaccess.conference.ConferenceExtraction
 import com.meta.wearable.dat.externalsampleapps.cameraaccess.conference.ConferenceExtractionHandlingResult
 import com.meta.wearable.dat.externalsampleapps.cameraaccess.conference.ConferenceExtractionProcessor
+import com.meta.wearable.dat.externalsampleapps.cameraaccess.conference.ConferenceContact
+import com.meta.wearable.dat.externalsampleapps.cameraaccess.conference.ConferenceContactStore
+import com.meta.wearable.dat.externalsampleapps.cameraaccess.conference.ConferenceEnrichmentClient
 import com.meta.wearable.dat.externalsampleapps.cameraaccess.conference.ConferenceModeConfig
 import com.meta.wearable.dat.externalsampleapps.cameraaccess.openclaw.OpenClawBridge
 import com.meta.wearable.dat.externalsampleapps.cameraaccess.openclaw.OpenClawEventClient
@@ -52,9 +55,11 @@ class GeminiSessionViewModel : ViewModel() {
     private var toolCallRouter: ToolCallRouter? = null
     private val audioManager = AudioManager()
     private val eventClient = OpenClawEventClient()
+    private val conferenceEnrichmentClient = ConferenceEnrichmentClient()
     private var lastVideoFrameTime: Long = 0
     private var stateObservationJob: Job? = null
     private var conferenceProcessor = ConferenceExtractionProcessor(ConferenceModeConfig(enabled = false))
+    private val enrichmentJobs = mutableMapOf<String, Job>()
 
     var streamingMode: StreamingMode = StreamingMode.GLASSES
 
@@ -205,6 +210,8 @@ class GeminiSessionViewModel : ViewModel() {
         eventClient.disconnect()
         toolCallRouter?.cancelAll()
         toolCallRouter = null
+        enrichmentJobs.values.forEach { it.cancel() }
+        enrichmentJobs.clear()
         audioManager.stopCapture()
         geminiService.disconnect()
         stateObservationJob?.cancel()
@@ -239,8 +246,12 @@ class GeminiSessionViewModel : ViewModel() {
 
         return when (val result = conferenceProcessor.handle(call.args)) {
             is ConferenceExtractionHandlingResult.Accepted -> {
+                val contact = ConferenceContactStore.upsert(result.extraction)
                 _uiState.value = _uiState.value.copy(lastConferenceExtraction = result.extraction)
                 logConferenceExtraction(result.extraction, "accepted")
+                if (contact != null) {
+                    scheduleConferenceEnrichmentIfNeeded(contact)
+                }
                 buildLocalToolResponse(
                     callId = call.id,
                     name = call.name,
@@ -248,6 +259,7 @@ class GeminiSessionViewModel : ViewModel() {
                 )
             }
             is ConferenceExtractionHandlingResult.Review -> {
+                ConferenceContactStore.upsert(result.extraction)
                 _uiState.value = _uiState.value.copy(lastConferenceExtraction = result.extraction)
                 logConferenceExtraction(result.extraction, "review")
                 buildLocalToolResponse(
@@ -288,6 +300,27 @@ class GeminiSessionViewModel : ViewModel() {
             TAG,
             "[Conference] $event name=${extraction.name} company=${extraction.company.orEmpty()} role=${extraction.role.orEmpty()} source=${extraction.sourceType.wireValue} confidence=${extraction.confidence} observed_text=${extraction.observedText.orEmpty()}",
         )
+    }
+
+    private fun scheduleConferenceEnrichmentIfNeeded(contact: ConferenceContact) {
+        if (!GeminiConfig.isOpenClawConfigured) return
+        if (enrichmentJobs.containsKey(contact.id)) return
+        if (!ConferenceContactStore.queueEnrichmentIfNeeded(contact.id)) return
+
+        val job = viewModelScope.launch {
+            ConferenceContactStore.markEnrichmentRunning(contact.id)
+            val latestContact = ConferenceContactStore.fetchContact(contact.id) ?: contact
+            conferenceEnrichmentClient.enrich(latestContact)
+                .onSuccess { payload ->
+                    ConferenceContactStore.completeEnrichment(contact.id, payload)
+                }
+                .onFailure { error ->
+                    ConferenceContactStore.failEnrichment(contact.id, error.message ?: "Unknown enrichment error")
+                }
+            enrichmentJobs.remove(contact.id)
+        }
+
+        enrichmentJobs[contact.id] = job
     }
 
     private fun buildLocalToolResponse(
