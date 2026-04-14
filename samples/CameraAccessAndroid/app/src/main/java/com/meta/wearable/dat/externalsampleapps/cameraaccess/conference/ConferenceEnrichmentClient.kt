@@ -1,5 +1,7 @@
 package com.meta.wearable.dat.externalsampleapps.cameraaccess.conference
 
+import com.google.gson.JsonElement
+import com.google.gson.JsonParser
 import com.meta.wearable.dat.externalsampleapps.cameraaccess.gemini.GeminiConfig
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -100,14 +102,14 @@ class ConferenceEnrichmentClient(
             val trimmed = response.trim()
             val jsonText = extractJSONObject(trimmed) ?: trimmed
             return runCatching {
-                val json = JSONObject(jsonText)
+                val json = JsonParser.parseString(jsonText).asJsonObject
                 ConferenceEnrichmentPayload(
-                    headline = json.optString("headline").trim().takeIf { it.isNotEmpty() },
-                    companySummary = json.optString("company_summary").trim().takeIf { it.isNotEmpty() },
-                    talkingPoints = readStringArray(json.optJSONArray("talking_points")),
-                    followUp = json.optString("follow_up").trim().takeIf { it.isNotEmpty() },
-                    confidenceNotes = json.optString("confidence_notes").trim().takeIf { it.isNotEmpty() },
-                    sourceUrls = readStringArray(json.optJSONArray("source_urls")),
+                    headline = readString(json.get("headline")),
+                    companySummary = readString(json.get("company_summary")),
+                    talkingPoints = readStringArray(json.get("talking_points")),
+                    followUp = readString(json.get("follow_up")),
+                    confidenceNotes = readString(json.get("confidence_notes")),
+                    sourceUrls = readStringArray(json.get("source_urls")),
                     rawResponse = trimmed,
                 )
             }.getOrElse {
@@ -122,14 +124,19 @@ class ConferenceEnrichmentClient(
             return text.substring(start, end + 1)
         }
 
-        private fun readStringArray(array: JSONArray?): List<String> {
-            if (array == null) return emptyList()
-            return buildList {
-                for (index in 0 until array.length()) {
-                    val value = array.optString(index).trim()
-                    if (value.isNotEmpty()) {
-                        add(value)
-                    }
+        private fun readString(element: JsonElement?): String? {
+            if (element == null || element.isJsonNull || !element.isJsonPrimitive) return null
+            val value = element.asString.trim()
+            return value.takeIf { it.isNotEmpty() }
+        }
+
+        private fun readStringArray(element: JsonElement?): List<String> {
+            if (element == null || element.isJsonNull || !element.isJsonArray) return emptyList()
+            return element.asJsonArray.mapNotNull { item ->
+                if (item == null || item.isJsonNull || !item.isJsonPrimitive) {
+                    null
+                } else {
+                    item.asString.trim().takeIf { it.isNotEmpty() }
                 }
             }
         }
