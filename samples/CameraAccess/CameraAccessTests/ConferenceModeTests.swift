@@ -202,6 +202,29 @@ final class ConferenceModeTests: XCTestCase {
     XCTAssertEqual(payload.sourceURLs.count, 1)
   }
 
+  func testConferenceContactStoreAllowsRetryAfterFailedEnrichment() {
+    let store = makeStore()
+    let extraction = ConferenceExtraction(
+      name: "Avery Cole",
+      company: "Northstar Labs",
+      role: "Founder",
+      sourceType: .badge,
+      confidence: 0.93,
+      observedText: "Avery Cole Northstar Labs",
+      disposition: .accepted,
+      detectedAt: Date(timeIntervalSince1970: 30)
+    )
+
+    let contact = try XCTUnwrap(store.upsert(extraction: extraction))
+    XCTAssertTrue(store.queueEnrichmentIfNeeded(contactID: contact.id))
+
+    store.markEnrichmentRunning(contactID: contact.id)
+    store.failEnrichment(contactID: contact.id, error: "Temporary gateway error")
+
+    XCTAssertTrue(store.queueEnrichmentIfNeeded(contactID: contact.id))
+    XCTAssertEqual(store.fetchContact(id: contact.id)?.enrichmentStatus, .queued)
+  }
+
   private func makeProcessor() -> ConferenceExtractionProcessor {
     ConferenceExtractionProcessor(
       config: ConferenceModeConfig(

@@ -25,9 +25,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -36,7 +38,12 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.meta.wearable.dat.externalsampleapps.cameraaccess.conference.ConferenceContact
 import com.meta.wearable.dat.externalsampleapps.cameraaccess.conference.ConferenceContactStore
+import com.meta.wearable.dat.externalsampleapps.cameraaccess.conference.ConferenceEnrichmentClient
 import com.meta.wearable.dat.externalsampleapps.cameraaccess.settings.SettingsManager
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -57,6 +64,41 @@ fun SettingsScreen(
     var showResetDialog by remember { mutableStateOf(false) }
     var showConferenceContacts by remember { mutableStateOf(false) }
     var conferenceContacts by remember { mutableStateOf<List<ConferenceContact>>(emptyList()) }
+    var retryingConferenceContacts by remember { mutableStateOf<Set<String>>(emptySet()) }
+    val scope = rememberCoroutineScope()
+    val enrichmentClient = remember { ConferenceEnrichmentClient() }
+
+    fun refreshConferenceContacts() {
+        conferenceContacts = ConferenceContactStore.fetchContacts()
+    }
+
+    fun retryConferenceContact(contact: ConferenceContact) {
+        if (retryingConferenceContacts.contains(contact.id)) return
+
+        retryingConferenceContacts = retryingConferenceContacts + contact.id
+        scope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    if (!ConferenceContactStore.queueEnrichmentIfNeeded(contact.id)) {
+                        return@withContext
+                    }
+
+                    ConferenceContactStore.markEnrichmentRunning(contact.id)
+                    val latestContact = ConferenceContactStore.fetchContact(contact.id) ?: contact
+                    enrichmentClient.enrich(latestContact)
+                        .onSuccess { payload ->
+                            ConferenceContactStore.completeEnrichment(contact.id, payload)
+                        }
+                        .onFailure { error ->
+                            ConferenceContactStore.failEnrichment(contact.id, error.message ?: "Unknown enrichment error")
+                        }
+                }
+            } finally {
+                retryingConferenceContacts = retryingConferenceContacts - contact.id
+                refreshConferenceContacts()
+            }
+        }
+    }
 
     fun save() {
         SettingsManager.geminiAPIKey = geminiAPIKey.trim()
@@ -143,7 +185,7 @@ fun SettingsScreen(
                 )
             }
             TextButton(onClick = {
-                conferenceContacts = ConferenceContactStore.fetchContacts()
+                refreshConferenceContacts()
                 showConferenceContacts = true
             }) {
                 Text("View Conference Contacts")
@@ -261,11 +303,20 @@ fun SettingsScreen(
         )
     }
 
+    LaunchedEffect(showConferenceContacts) {
+        while (showConferenceContacts) {
+            refreshConferenceContacts()
+            delay(2_000)
+        }
+    }
+
     if (showConferenceContacts) {
         ConferenceContactsSheet(
             contacts = conferenceContacts,
+            retryingContactIds = retryingConferenceContacts,
             onDismiss = { showConferenceContacts = false },
-            onRefresh = { conferenceContacts = ConferenceContactStore.fetchContacts() },
+            onRefresh = { refreshConferenceContacts() },
+            onRetry = { contact -> retryConferenceContact(contact) },
         )
     }
 }

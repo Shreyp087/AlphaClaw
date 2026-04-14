@@ -26,8 +26,10 @@ import com.meta.wearable.dat.externalsampleapps.cameraaccess.conference.Conferen
 @Composable
 fun ConferenceContactsSheet(
     contacts: List<ConferenceContact>,
+    retryingContactIds: Set<String>,
     onDismiss: () -> Unit,
     onRefresh: () -> Unit,
+    onRetry: (ConferenceContact) -> Unit,
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -67,7 +69,11 @@ fun ConferenceContactsSheet(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     items(contacts, key = { it.id }) { contact ->
-                        ConferenceContactCard(contact = contact)
+                        ConferenceContactCard(
+                            contact = contact,
+                            isRetrying = retryingContactIds.contains(contact.id),
+                            onRetry = onRetry,
+                        )
                     }
                 }
             }
@@ -76,7 +82,11 @@ fun ConferenceContactsSheet(
 }
 
 @Composable
-private fun ConferenceContactCard(contact: ConferenceContact) {
+private fun ConferenceContactCard(
+    contact: ConferenceContact,
+    isRetrying: Boolean,
+    onRetry: (ConferenceContact) -> Unit,
+) {
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -151,6 +161,20 @@ private fun ConferenceContactCard(contact: ConferenceContact) {
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                }
+            }
+        }
+
+        if (contact.canRetryEnrichment) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+            ) {
+                TextButton(
+                    onClick = { onRetry(contact) },
+                    enabled = !isRetrying,
+                ) {
+                    Text(if (isRetrying) "Retrying..." else "Retry Enrichment")
                 }
             }
         }

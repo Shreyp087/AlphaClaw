@@ -3,6 +3,9 @@ import SwiftUI
 struct ConferenceContactsView: View {
   @Environment(\.dismiss) private var dismiss
   @State private var contacts: [ConferenceContact] = []
+  @State private var retryingContactIDs: Set<String> = []
+  private let store = ConferenceContactStore.shared
+  private let enrichmentClient = ConferenceEnrichmentClient()
 
   var body: some View {
     NavigationView {
@@ -15,7 +18,13 @@ struct ConferenceContactsView: View {
           )
         } else {
           List(contacts) { contact in
-            ConferenceContactRow(contact: contact)
+            ConferenceContactRow(
+              contact: contact,
+              isRetrying: retryingContactIDs.contains(contact.id),
+              onRetry: {
+                retry(contact)
+              }
+            )
           }
           .listStyle(.plain)
         }
@@ -38,15 +47,49 @@ struct ConferenceContactsView: View {
     .onAppear {
       reload()
     }
+    .task {
+      while !Task.isCancelled {
+        reload()
+        try? await Task.sleep(nanoseconds: 2_000_000_000)
+      }
+    }
   }
 
   private func reload() {
-    contacts = ConferenceContactStore.shared.fetchContacts()
+    contacts = store.fetchContacts()
+  }
+
+  private func retry(_ contact: ConferenceContact) {
+    guard !retryingContactIDs.contains(contact.id) else { return }
+
+    retryingContactIDs.insert(contact.id)
+    Task {
+      defer {
+        Task { @MainActor in
+          retryingContactIDs.remove(contact.id)
+          reload()
+        }
+      }
+
+      guard store.queueEnrichmentIfNeeded(contactID: contact.id) else { return }
+
+      store.markEnrichmentRunning(contactID: contact.id)
+      let latestContact = store.fetchContact(id: contact.id) ?? contact
+      let result = await enrichmentClient.enrich(contact: latestContact)
+      switch result {
+      case .success(let payload):
+        store.completeEnrichment(contactID: contact.id, payload: payload)
+      case .failure(let message):
+        store.failEnrichment(contactID: contact.id, error: message)
+      }
+    }
   }
 }
 
 private struct ConferenceContactRow: View {
   let contact: ConferenceContact
+  let isRetrying: Bool
+  let onRetry: () -> Void
 
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
@@ -96,6 +139,17 @@ private struct ConferenceContactRow: View {
               .font(.caption)
               .foregroundColor(.secondary)
           }
+        }
+      }
+
+      if contact.canRetryEnrichment {
+        HStack {
+          Spacer()
+          Button(isRetrying ? "Retrying..." : "Retry Enrichment") {
+            onRetry()
+          }
+          .font(.caption.weight(.semibold))
+          .disabled(isRetrying)
         }
       }
     }

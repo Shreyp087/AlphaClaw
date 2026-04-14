@@ -64,4 +64,12 @@ struct ConferenceContact: Identifiable, Equatable {
       }
       .joined(separator: " / ")
   }
+
+  var canRetryEnrichment: Bool {
+    disposition == .accepted && enrichmentStatus == .failed
+  }
+
+  var isEnrichmentInFlight: Bool {
+    enrichmentStatus == .queued || enrichmentStatus == .enriching
+  }
 }

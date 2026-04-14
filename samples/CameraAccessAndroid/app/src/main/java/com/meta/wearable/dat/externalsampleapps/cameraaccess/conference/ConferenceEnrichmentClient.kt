@@ -10,6 +10,8 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class ConferenceEnrichmentClient(
     private val client: OkHttpClient = OkHttpClient.Builder()
@@ -24,45 +26,47 @@ class ConferenceEnrichmentClient(
             return Result.failure(IllegalStateException("OpenClaw is not configured"))
         }
 
-        val url = "${GeminiConfig.openClawHost}:${GeminiConfig.openClawPort}/v1/chat/completions"
-        val body = JSONObject().apply {
-            put("model", "openclaw")
-            put(
-                "messages",
-                JSONArray().put(
-                    JSONObject().apply {
-                        put("role", "user")
-                        put("content", buildTask(contact))
-                    },
-                ),
-            )
-            put("stream", false)
-        }
+        return withContext(Dispatchers.IO) {
+            val url = "${GeminiConfig.openClawHost}:${GeminiConfig.openClawPort}/v1/chat/completions"
+            val body = JSONObject().apply {
+                put("model", "openclaw")
+                put(
+                    "messages",
+                    JSONArray().put(
+                        JSONObject().apply {
+                            put("role", "user")
+                            put("content", buildTask(contact))
+                        },
+                    ),
+                )
+                put("stream", false)
+            }
 
-        val request = Request.Builder()
-            .url(url)
-            .post(body.toString().toRequestBody("application/json".toMediaType()))
-            .addHeader("Authorization", "Bearer ${GeminiConfig.openClawGatewayToken}")
-            .addHeader("Content-Type", "application/json")
-            .addHeader("x-openclaw-session-key", sessionKey)
-            .addHeader("x-openclaw-message-channel", "glass")
-            .build()
+            val request = Request.Builder()
+                .url(url)
+                .post(body.toString().toRequestBody("application/json".toMediaType()))
+                .addHeader("Authorization", "Bearer ${GeminiConfig.openClawGatewayToken}")
+                .addHeader("Content-Type", "application/json")
+                .addHeader("x-openclaw-session-key", sessionKey)
+                .addHeader("x-openclaw-message-channel", "glass")
+                .build()
 
-        return runCatching {
-            client.newCall(request).execute().use { response ->
-                val rawBody = response.body?.string().orEmpty()
-                if (!response.isSuccessful) {
-                    error("OpenClaw returned HTTP ${response.code}")
+            runCatching {
+                client.newCall(request).execute().use { response ->
+                    val rawBody = response.body?.string().orEmpty()
+                    if (!response.isSuccessful) {
+                        error("OpenClaw returned HTTP ${response.code}")
+                    }
+
+                    val content = JSONObject(rawBody)
+                        .optJSONArray("choices")
+                        ?.optJSONObject(0)
+                        ?.optJSONObject("message")
+                        ?.optString("content")
+                        .orEmpty()
+
+                    parsePayload(content)
                 }
-
-                val content = JSONObject(rawBody)
-                    .optJSONArray("choices")
-                    ?.optJSONObject(0)
-                    ?.optJSONObject("message")
-                    ?.optString("content")
-                    .orEmpty()
-
-                parsePayload(content)
             }
         }
     }

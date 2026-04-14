@@ -59,4 +59,12 @@ data class ConferenceContact(
     val summaryText: String
         get() = listOfNotNull(company?.trim()?.takeIf { it.isNotEmpty() }, role?.trim()?.takeIf { it.isNotEmpty() })
             .joinToString(separator = " / ")
+
+    val canRetryEnrichment: Boolean
+        get() = disposition == ConferenceExtractionDisposition.ACCEPTED &&
+            enrichmentStatus == ConferenceEnrichmentStatus.FAILED
+
+    val isEnrichmentInFlight: Boolean
+        get() = enrichmentStatus == ConferenceEnrichmentStatus.QUEUED ||
+            enrichmentStatus == ConferenceEnrichmentStatus.ENRICHING
 }

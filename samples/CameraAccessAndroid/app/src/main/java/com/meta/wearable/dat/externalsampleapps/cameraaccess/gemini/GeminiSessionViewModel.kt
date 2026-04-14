@@ -21,6 +21,7 @@ import com.meta.wearable.dat.externalsampleapps.cameraaccess.openclaw.ToolResult
 import com.meta.wearable.dat.externalsampleapps.cameraaccess.settings.SettingsManager
 import com.meta.wearable.dat.externalsampleapps.cameraaccess.stream.StreamingMode
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -307,7 +308,7 @@ class GeminiSessionViewModel : ViewModel() {
         if (enrichmentJobs.containsKey(contact.id)) return
         if (!ConferenceContactStore.queueEnrichmentIfNeeded(contact.id)) return
 
-        val job = viewModelScope.launch {
+        val job = viewModelScope.launch(Dispatchers.IO) {
             ConferenceContactStore.markEnrichmentRunning(contact.id)
             val latestContact = ConferenceContactStore.fetchContact(contact.id) ?: contact
             conferenceEnrichmentClient.enrich(latestContact)
