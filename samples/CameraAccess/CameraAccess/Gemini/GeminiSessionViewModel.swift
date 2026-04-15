@@ -246,7 +246,7 @@ class GeminiSessionViewModel: ObservableObject {
       lastConferenceExtraction = extraction
       logConferenceExtraction(extraction, event: "accepted")
       if let contact = conferenceStore.upsert(extraction: extraction) {
-        activeConferenceContactID = contact.id
+        activateConferenceContact(contact.id)
         scheduleConferenceEnrichmentIfNeeded(for: contact)
       }
       return buildLocalToolResponse(
@@ -346,6 +346,13 @@ class GeminiSessionViewModel: ObservableObject {
     let mergedSnippet = transcriptParts.joined(separator: "\n")
     guard !mergedSnippet.isEmpty else { return }
     conferenceStore.appendConversationSnippet(contactID: contactID, snippet: mergedSnippet)
+  }
+
+  private func activateConferenceContact(_ contactID: String) {
+    if activeConferenceContactID != nil, activeConferenceContactID != contactID {
+      flushConferenceConversationIfNeeded()
+    }
+    activeConferenceContactID = contactID
   }
 
   private func buildLocalToolResponse(

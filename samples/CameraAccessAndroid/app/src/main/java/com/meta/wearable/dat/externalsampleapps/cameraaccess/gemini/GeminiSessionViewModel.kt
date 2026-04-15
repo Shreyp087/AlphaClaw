@@ -264,7 +264,7 @@ class GeminiSessionViewModel : ViewModel() {
                 _uiState.value = _uiState.value.copy(lastConferenceExtraction = result.extraction)
                 logConferenceExtraction(result.extraction, "accepted")
                 if (contact != null) {
-                    activeConferenceContactId = contact.id
+                    activateConferenceContact(contact.id)
                     scheduleConferenceEnrichmentIfNeeded(contact)
                 }
                 buildLocalToolResponse(
@@ -364,6 +364,13 @@ class GeminiSessionViewModel : ViewModel() {
         if (mergedSnippet.isNotEmpty()) {
             ConferenceContactStore.appendConversationSnippet(contactId, mergedSnippet)
         }
+    }
+
+    private fun activateConferenceContact(contactId: String) {
+        if (activeConferenceContactId != null && activeConferenceContactId != contactId) {
+            flushConferenceConversationIfNeeded()
+        }
+        activeConferenceContactId = contactId
     }
 
     private fun buildLocalToolResponse(
