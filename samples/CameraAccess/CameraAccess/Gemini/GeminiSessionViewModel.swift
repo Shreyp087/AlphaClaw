@@ -12,6 +12,7 @@ class GeminiSessionViewModel: ObservableObject {
   @Published var toolCallStatus: ToolCallStatus = .idle
   @Published var openClawConnectionState: OpenClawConnectionState = .notConfigured
   @Published var lastConferenceExtraction: ConferenceExtraction?
+  @Published var activeConferenceContact: ConferenceContact?
   private let geminiService = GeminiLiveService()
   private let openClawBridge = OpenClawBridge()
   private var toolCallRouter: ToolCallRouter?
@@ -40,6 +41,7 @@ class GeminiSessionViewModel: ObservableObject {
 
     isGeminiActive = true
     lastConferenceExtraction = nil
+    activeConferenceContact = nil
     conferenceProcessor = ConferenceExtractionProcessor(config: .current)
     activeConferenceContactID = nil
     currentConversationUserText = ""
@@ -217,6 +219,7 @@ class GeminiSessionViewModel: ObservableObject {
     aiTranscript = ""
     toolCallStatus = .idle
     lastConferenceExtraction = nil
+    activeConferenceContact = nil
     activeConferenceContactID = nil
     currentConversationUserText = ""
     currentConversationAssistantText = ""
@@ -246,7 +249,7 @@ class GeminiSessionViewModel: ObservableObject {
       lastConferenceExtraction = extraction
       logConferenceExtraction(extraction, event: "accepted")
       if let contact = conferenceStore.upsert(extraction: extraction) {
-        activateConferenceContact(contact.id)
+        activateConferenceContact(contact)
         scheduleConferenceEnrichmentIfNeeded(for: contact)
       }
       return buildLocalToolResponse(
@@ -346,13 +349,15 @@ class GeminiSessionViewModel: ObservableObject {
     let mergedSnippet = transcriptParts.joined(separator: "\n")
     guard !mergedSnippet.isEmpty else { return }
     conferenceStore.appendConversationSnippet(contactID: contactID, snippet: mergedSnippet)
+    activeConferenceContact = conferenceStore.fetchContact(id: contactID) ?? activeConferenceContact
   }
 
-  private func activateConferenceContact(_ contactID: String) {
-    if activeConferenceContactID != nil, activeConferenceContactID != contactID {
+  private func activateConferenceContact(_ contact: ConferenceContact) {
+    if activeConferenceContactID != nil, activeConferenceContactID != contact.id {
       flushConferenceConversationIfNeeded()
     }
-    activeConferenceContactID = contactID
+    activeConferenceContactID = contact.id
+    activeConferenceContact = contact
   }
 
   private func buildLocalToolResponse(

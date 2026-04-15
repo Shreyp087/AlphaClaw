@@ -41,6 +41,7 @@ data class GeminiUiState(
     val openClawConnectionState: OpenClawConnectionState = OpenClawConnectionState.NotConfigured,
     val conferenceModeEnabled: Boolean = false,
     val lastConferenceExtraction: ConferenceExtraction? = null,
+    val activeConferenceContact: ConferenceContact? = null,
 )
 
 class GeminiSessionViewModel : ViewModel() {
@@ -85,6 +86,7 @@ class GeminiSessionViewModel : ViewModel() {
             isGeminiActive = true,
             conferenceModeEnabled = SettingsManager.conferenceModeEnabled,
             lastConferenceExtraction = null,
+            activeConferenceContact = null,
         )
 
         // Wire audio callbacks
@@ -264,7 +266,7 @@ class GeminiSessionViewModel : ViewModel() {
                 _uiState.value = _uiState.value.copy(lastConferenceExtraction = result.extraction)
                 logConferenceExtraction(result.extraction, "accepted")
                 if (contact != null) {
-                    activateConferenceContact(contact.id)
+                    activateConferenceContact(contact)
                     scheduleConferenceEnrichmentIfNeeded(contact)
                 }
                 buildLocalToolResponse(
@@ -363,14 +365,18 @@ class GeminiSessionViewModel : ViewModel() {
 
         if (mergedSnippet.isNotEmpty()) {
             ConferenceContactStore.appendConversationSnippet(contactId, mergedSnippet)
+            _uiState.value = _uiState.value.copy(
+                activeConferenceContact = ConferenceContactStore.fetchContact(contactId) ?: _uiState.value.activeConferenceContact,
+            )
         }
     }
 
-    private fun activateConferenceContact(contactId: String) {
-        if (activeConferenceContactId != null && activeConferenceContactId != contactId) {
+    private fun activateConferenceContact(contact: ConferenceContact) {
+        if (activeConferenceContactId != null && activeConferenceContactId != contact.id) {
             flushConferenceConversationIfNeeded()
         }
-        activeConferenceContactId = contactId
+        activeConferenceContactId = contact.id
+        _uiState.value = _uiState.value.copy(activeConferenceContact = contact)
     }
 
     private fun buildLocalToolResponse(

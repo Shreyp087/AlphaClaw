@@ -1,5 +1,6 @@
 package com.meta.wearable.dat.externalsampleapps.cameraaccess.ui
 
+import android.text.format.DateUtils
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -31,6 +32,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.meta.wearable.dat.externalsampleapps.cameraaccess.conference.ConferenceContact
 import com.meta.wearable.dat.externalsampleapps.cameraaccess.conference.ConferenceExtraction
 import com.meta.wearable.dat.externalsampleapps.cameraaccess.conference.ConferenceExtractionDisposition
 import com.meta.wearable.dat.externalsampleapps.cameraaccess.gemini.GeminiConnectionState
@@ -65,6 +67,11 @@ fun GeminiOverlay(
         if (uiState.conferenceModeEnabled && uiState.lastConferenceExtraction != null) {
             Spacer(modifier = Modifier.height(4.dp))
             ConferenceExtractionCard(extraction = uiState.lastConferenceExtraction)
+        }
+
+        if (uiState.conferenceModeEnabled && uiState.activeConferenceContact != null) {
+            Spacer(modifier = Modifier.height(4.dp))
+            ConferenceActiveContactCard(contact = uiState.activeConferenceContact)
         }
 
         // Tool call status
@@ -141,6 +148,71 @@ fun ConferenceExtractionCard(
                 color = Color.White.copy(alpha = 0.65f),
                 fontSize = 12.sp,
                 maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+@Composable
+fun ConferenceActiveContactCard(
+    contact: ConferenceContact?,
+    modifier: Modifier = Modifier,
+) {
+    if (contact == null) return
+
+    Column(
+        modifier = modifier
+            .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "Tracking Conversation",
+                color = Color(0xFF4DD0E1),
+                fontSize = 11.sp,
+            )
+            Text(
+                text = DateUtils.getRelativeTimeSpanString(
+                    contact.lastActivityAtMs,
+                    System.currentTimeMillis(),
+                    DateUtils.MINUTE_IN_MILLIS,
+                ).toString(),
+                color = Color.White.copy(alpha = 0.7f),
+                fontSize = 11.sp,
+                fontFamily = FontFamily.Monospace,
+            )
+        }
+
+        Text(
+            text = contact.name,
+            color = Color.White,
+            fontSize = 16.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+
+        if (contact.summaryText.isNotEmpty()) {
+            Text(
+                text = contact.summaryText,
+                color = Color.White.copy(alpha = 0.85f),
+                fontSize = 13.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+
+        if (contact.hasConversationSnippet) {
+            Text(
+                text = contact.conversationSnippet.orEmpty(),
+                color = Color.White.copy(alpha = 0.72f),
+                fontSize = 12.sp,
+                maxLines = 3,
                 overflow = TextOverflow.Ellipsis,
             )
         }

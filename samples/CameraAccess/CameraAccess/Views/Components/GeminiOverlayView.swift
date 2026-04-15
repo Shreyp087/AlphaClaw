@@ -1,5 +1,11 @@
 import SwiftUI
 
+private let conferenceActivityFormatter: RelativeDateTimeFormatter = {
+  let formatter = RelativeDateTimeFormatter()
+  formatter.unitsStyle = .abbreviated
+  return formatter
+}()
+
 struct GeminiStatusBar: View {
   @ObservedObject var geminiVM: GeminiSessionViewModel
 
@@ -179,6 +185,46 @@ struct ConferenceExtractionCard: View {
           .font(.system(size: 12))
           .foregroundColor(.white.opacity(0.65))
           .lineLimit(2)
+      }
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .padding(.horizontal, 16)
+    .padding(.vertical, 10)
+    .background(Color.black.opacity(0.6))
+    .cornerRadius(12)
+  }
+}
+
+struct ConferenceActiveContactCard: View {
+  let contact: ConferenceContact
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      HStack {
+        Text("Tracking Conversation")
+          .font(.system(size: 11, weight: .semibold))
+          .foregroundColor(.cyan)
+        Spacer()
+        Text(conferenceActivityFormatter.localizedString(for: contact.lastActivityAt, relativeTo: Date()))
+          .font(.system(size: 11, weight: .medium, design: .monospaced))
+          .foregroundColor(.white.opacity(0.7))
+      }
+
+      Text(contact.name)
+        .font(.system(size: 16, weight: .semibold))
+        .foregroundColor(.white)
+
+      if !contact.summaryText.isEmpty {
+        Text(contact.summaryText)
+          .font(.system(size: 13))
+          .foregroundColor(.white.opacity(0.85))
+      }
+
+      if contact.hasConversationSnippet {
+        Text(contact.conversationSnippet ?? "")
+          .font(.system(size: 12))
+          .foregroundColor(.white.opacity(0.72))
+          .lineLimit(3)
       }
     }
     .frame(maxWidth: .infinity, alignment: .leading)

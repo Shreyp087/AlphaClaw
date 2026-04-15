@@ -69,6 +69,10 @@ struct StreamView: View {
               ConferenceExtractionCard(extraction: extraction)
             }
 
+            if geminiVM.isConferenceModeEnabled, let activeContact = geminiVM.activeConferenceContact {
+              ConferenceActiveContactCard(contact: activeContact)
+            }
+
             ToolCallStatusView(status: geminiVM.toolCallStatus)
 
             if geminiVM.isModelSpeaking {
