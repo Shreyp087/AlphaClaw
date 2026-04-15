@@ -178,6 +178,56 @@ class ConferenceModeTests {
         assertEquals("User: Hello there", merged)
     }
 
+    @Test
+    fun conferenceContactUsesConversationActivityTimestampWhenPresent() {
+        val contact = ConferenceContact(
+            id = "1",
+            dedupeKey = "alex|openai|badge",
+            name = "Alex Morgan",
+            company = "OpenAI",
+            role = "Researcher",
+            sourceType = ConferenceSourceType.BADGE,
+            confidence = 0.88,
+            observedText = "Alex Morgan OpenAI",
+            disposition = ConferenceExtractionDisposition.ACCEPTED,
+            firstSeenAtMs = 1L,
+            lastSeenAtMs = 10L,
+            enrichmentStatus = ConferenceEnrichmentStatus.NOT_REQUESTED,
+            enrichment = null,
+            enrichmentError = null,
+            lastEnrichedAtMs = null,
+            conversationSnippet = "User: Hello",
+            lastConversationAtMs = 42L,
+        )
+
+        assertEquals(42L, contact.lastActivityAtMs)
+    }
+
+    @Test
+    fun conferenceContactFallsBackToSeenTimestampWithoutConversationActivity() {
+        val contact = ConferenceContact(
+            id = "1",
+            dedupeKey = "alex|openai|badge",
+            name = "Alex Morgan",
+            company = "OpenAI",
+            role = "Researcher",
+            sourceType = ConferenceSourceType.BADGE,
+            confidence = 0.88,
+            observedText = "Alex Morgan OpenAI",
+            disposition = ConferenceExtractionDisposition.ACCEPTED,
+            firstSeenAtMs = 1L,
+            lastSeenAtMs = 10L,
+            enrichmentStatus = ConferenceEnrichmentStatus.NOT_REQUESTED,
+            enrichment = null,
+            enrichmentError = null,
+            lastEnrichedAtMs = null,
+            conversationSnippet = null,
+            lastConversationAtMs = null,
+        )
+
+        assertEquals(10L, contact.lastActivityAtMs)
+    }
+
     private fun makeProcessor(): ConferenceExtractionProcessor {
         return ConferenceExtractionProcessor(
             ConferenceModeConfig(

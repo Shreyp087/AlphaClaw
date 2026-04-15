@@ -33,7 +33,7 @@ object ConferenceContactStore {
             null,
             null,
             null,
-            "last_seen_at_ms DESC",
+            "COALESCE(last_conversation_at_ms, last_seen_at_ms) DESC, last_seen_at_ms DESC",
             limit.toString(),
         )
 

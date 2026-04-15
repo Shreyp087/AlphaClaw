@@ -79,4 +79,8 @@ struct ConferenceContact: Identifiable, Equatable {
     guard let conversationSnippet else { return false }
     return !conversationSnippet.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
+
+  var lastActivityAt: Date {
+    lastConversationAt ?? lastSeenAt
+  }
 }

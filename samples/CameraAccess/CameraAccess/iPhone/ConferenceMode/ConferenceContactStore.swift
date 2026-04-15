@@ -39,7 +39,7 @@ final class ConferenceContactStore {
              disposition, first_seen_at, last_seen_at, enrichment_status, enrichment_json,
              enrichment_error, last_enriched_at, conversation_snippet, last_conversation_at
       FROM conference_contacts
-      ORDER BY last_seen_at DESC
+      ORDER BY COALESCE(last_conversation_at, last_seen_at) DESC, last_seen_at DESC
       LIMIT ?;
       """
 

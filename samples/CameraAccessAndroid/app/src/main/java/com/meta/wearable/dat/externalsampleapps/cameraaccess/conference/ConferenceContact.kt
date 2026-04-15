@@ -72,4 +72,7 @@ data class ConferenceContact(
 
     val hasConversationSnippet: Boolean
         get() = !conversationSnippet.isNullOrBlank()
+
+    val lastActivityAtMs: Long
+        get() = lastConversationAtMs ?: lastSeenAtMs
 }

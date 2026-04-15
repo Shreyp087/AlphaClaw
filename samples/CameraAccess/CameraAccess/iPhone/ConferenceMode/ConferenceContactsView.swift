@@ -87,6 +87,12 @@ struct ConferenceContactsView: View {
 }
 
 private struct ConferenceContactRow: View {
+  private static let activityFormatter: RelativeDateTimeFormatter = {
+    let formatter = RelativeDateTimeFormatter()
+    formatter.unitsStyle = .abbreviated
+    return formatter
+  }()
+
   let contact: ConferenceContact
   let isRetrying: Bool
   let onRetry: () -> Void
@@ -120,6 +126,10 @@ private struct ConferenceContactRow: View {
         .font(.caption)
         .foregroundColor(.secondary)
 
+      Text("Last activity \(Self.activityFormatter.localizedString(for: contact.lastActivityAt, relativeTo: Date()))")
+        .font(.caption)
+        .foregroundColor(.secondary)
+
       if let summary = contact.enrichment?.summaryText, !summary.isEmpty {
         Text(summary)
           .font(.body)
@@ -142,12 +152,12 @@ private struct ConferenceContactRow: View {
         }
       }
 
-      if let conversationSnippet = contact.conversationSnippet, !conversationSnippet.isEmpty {
+      if contact.hasConversationSnippet {
         VStack(alignment: .leading, spacing: 4) {
           Text("Conversation")
             .font(.caption.weight(.semibold))
             .foregroundColor(.secondary)
-          Text(conversationSnippet)
+          Text(contact.conversationSnippet ?? "")
             .font(.caption)
             .foregroundColor(.secondary)
         }

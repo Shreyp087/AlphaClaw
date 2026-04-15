@@ -259,6 +259,40 @@ final class ConferenceModeTests: XCTestCase {
     XCTAssertEqual(merged, "User: Hello there")
   }
 
+  func testConferenceContactStoreSortsByConversationActivity() {
+    let store = makeStore()
+
+    let earlierContact = try XCTUnwrap(store.upsert(extraction: ConferenceExtraction(
+      name: "Nina Park",
+      company: "Signal Labs",
+      role: "CEO",
+      sourceType: .badge,
+      confidence: 0.91,
+      observedText: nil,
+      disposition: .accepted,
+      detectedAt: Date(timeIntervalSince1970: 10)
+    )))
+
+    _ = store.upsert(extraction: ConferenceExtraction(
+      name: "Owen Diaz",
+      company: "Northstar",
+      role: "Founder",
+      sourceType: .badge,
+      confidence: 0.89,
+      observedText: nil,
+      disposition: .accepted,
+      detectedAt: Date(timeIntervalSince1970: 20)
+    ))
+
+    store.appendConversationSnippet(
+      contactID: earlierContact.id,
+      snippet: "User: Great to meet you",
+      observedAt: Date(timeIntervalSince1970: 30)
+    )
+
+    XCTAssertEqual(store.fetchContacts().first?.id, earlierContact.id)
+  }
+
   private func makeProcessor() -> ConferenceExtractionProcessor {
     ConferenceExtractionProcessor(
       config: ConferenceModeConfig(
