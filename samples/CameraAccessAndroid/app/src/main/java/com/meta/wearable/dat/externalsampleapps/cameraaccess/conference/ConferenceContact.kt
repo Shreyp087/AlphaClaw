@@ -55,6 +55,8 @@ data class ConferenceContact(
     val enrichment: ConferenceEnrichmentPayload?,
     val enrichmentError: String?,
     val lastEnrichedAtMs: Long?,
+    val conversationSnippet: String? = null,
+    val lastConversationAtMs: Long? = null,
 ) {
     val summaryText: String
         get() = listOfNotNull(company?.trim()?.takeIf { it.isNotEmpty() }, role?.trim()?.takeIf { it.isNotEmpty() })
@@ -67,4 +69,7 @@ data class ConferenceContact(
     val isEnrichmentInFlight: Boolean
         get() = enrichmentStatus == ConferenceEnrichmentStatus.QUEUED ||
             enrichmentStatus == ConferenceEnrichmentStatus.ENRICHING
+
+    val hasConversationSnippet: Boolean
+        get() = !conversationSnippet.isNullOrBlank()
 }

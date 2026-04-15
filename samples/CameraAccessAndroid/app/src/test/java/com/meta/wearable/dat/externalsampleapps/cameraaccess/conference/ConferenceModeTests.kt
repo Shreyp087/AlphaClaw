@@ -156,6 +156,8 @@ class ConferenceModeTests {
             enrichment = null,
             enrichmentError = null,
             lastEnrichedAtMs = null,
+            conversationSnippet = null,
+            lastConversationAtMs = null,
         )
 
         val task = ConferenceEnrichmentClient.buildTask(contact)
@@ -164,6 +166,16 @@ class ConferenceModeTests {
         assertTrue(task.contains("OpenAI"))
         assertTrue(task.contains("Researcher"))
         assertTrue(task.contains("badge"))
+    }
+
+    @Test
+    fun conversationSnippetMergeAvoidsDuplicateAppend() {
+        val merged = ConferenceContactStore.mergeConversationSnippet(
+            existing = "User: Hello there",
+            newSnippet = "User: Hello there",
+        )
+
+        assertEquals("User: Hello there", merged)
     }
 
     private fun makeProcessor(): ConferenceExtractionProcessor {

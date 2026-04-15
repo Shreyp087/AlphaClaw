@@ -225,6 +225,40 @@ final class ConferenceModeTests: XCTestCase {
     XCTAssertEqual(store.fetchContact(id: contact.id)?.enrichmentStatus, .queued)
   }
 
+  func testConferenceContactStoreAppendsConversationSnippet() {
+    let store = makeStore()
+    let extraction = ConferenceExtraction(
+      name: "Lena Ortiz",
+      company: "Beacon Labs",
+      role: "Founder",
+      sourceType: .badge,
+      confidence: 0.94,
+      observedText: "Lena Ortiz Beacon Labs",
+      disposition: .accepted,
+      detectedAt: Date(timeIntervalSince1970: 40)
+    )
+
+    let contact = try XCTUnwrap(store.upsert(extraction: extraction))
+    store.appendConversationSnippet(
+      contactID: contact.id,
+      snippet: "User: Great meeting you\nAssistant: She runs Beacon Labs",
+      observedAt: Date(timeIntervalSince1970: 50)
+    )
+
+    let updated = try XCTUnwrap(store.fetchContact(id: contact.id))
+    XCTAssertTrue(updated.conversationSnippet?.contains("Great meeting you") == true)
+    XCTAssertEqual(updated.lastConversationAt, Date(timeIntervalSince1970: 50))
+  }
+
+  func testConversationSnippetMergeAvoidsDuplicateAppend() {
+    let merged = ConferenceContactStore.mergeConversationSnippet(
+      existing: "User: Hello there",
+      newSnippet: "User: Hello there"
+    )
+
+    XCTAssertEqual(merged, "User: Hello there")
+  }
+
   private func makeProcessor() -> ConferenceExtractionProcessor {
     ConferenceExtractionProcessor(
       config: ConferenceModeConfig(

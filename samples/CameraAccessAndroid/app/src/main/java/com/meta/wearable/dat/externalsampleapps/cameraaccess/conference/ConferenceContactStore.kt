@@ -10,7 +10,7 @@ import java.util.UUID
 
 object ConferenceContactStore {
     private const val DATABASE_NAME = "conference_contacts.db"
-    private const val DATABASE_VERSION = 1
+    private const val DATABASE_VERSION = 2
     private const val TABLE_NAME = "conference_contacts"
 
     private lateinit var helper: ConferenceContactDbHelper
@@ -111,6 +111,8 @@ object ConferenceContactStore {
                 enrichment = null,
                 enrichmentError = null,
                 lastEnrichedAtMs = null,
+                conversationSnippet = null,
+                lastConversationAtMs = null,
             )
         }
 
@@ -160,6 +162,21 @@ object ConferenceContactStore {
         updateStatus(contactId, ConferenceEnrichmentStatus.FAILED, error)
     }
 
+    @Synchronized
+    fun appendConversationSnippet(contactId: String, snippet: String, observedAtMs: Long = System.currentTimeMillis()) {
+        val cleanedSnippet = snippet.trim()
+        if (cleanedSnippet.isEmpty()) return
+
+        val existing = fetchContact(contactId) ?: return
+        save(
+            helper.writableDatabase,
+            existing.copy(
+                conversationSnippet = mergeConversationSnippet(existing.conversationSnippet, cleanedSnippet),
+                lastConversationAtMs = observedAtMs,
+            ),
+        )
+    }
+
     private fun updateStatus(contactId: String, status: ConferenceEnrichmentStatus, error: String?) {
         val existing = fetchContact(contactId) ?: return
         save(
@@ -188,6 +205,8 @@ object ConferenceContactStore {
                 put("enrichment_json", contact.enrichment?.let(gson::toJson))
                 put("enrichment_error", contact.enrichmentError)
                 put("last_enriched_at_ms", contact.lastEnrichedAtMs)
+                put("conversation_snippet", contact.conversationSnippet)
+                put("last_conversation_at_ms", contact.lastConversationAtMs)
             },
             SQLiteDatabase.CONFLICT_REPLACE,
         )
@@ -243,7 +262,28 @@ object ConferenceContactStore {
             } else {
                 cursor.getLong(cursor.getColumnIndexOrThrow("last_enriched_at_ms"))
             },
+            conversationSnippet = cursor.getString(cursor.getColumnIndexOrThrow("conversation_snippet")),
+            lastConversationAtMs = if (cursor.isNull(cursor.getColumnIndexOrThrow("last_conversation_at_ms"))) {
+                null
+            } else {
+                cursor.getLong(cursor.getColumnIndexOrThrow("last_conversation_at_ms"))
+            },
         )
+    }
+
+    fun mergeConversationSnippet(existing: String?, newSnippet: String, maxCharacters: Int = 1200): String {
+        val cleanedNewSnippet = newSnippet.trim()
+        if (cleanedNewSnippet.isEmpty()) return existing?.trim().orEmpty()
+
+        val cleanedExisting = existing?.trim().orEmpty()
+        val merged = when {
+            cleanedExisting.isEmpty() -> cleanedNewSnippet
+            cleanedExisting.contains(cleanedNewSnippet) -> cleanedExisting
+            else -> "$cleanedExisting\n\n$cleanedNewSnippet"
+        }
+
+        if (merged.length <= maxCharacters) return merged
+        return merged.takeLast(maxCharacters).trim()
     }
 
     private class ConferenceContactDbHelper(context: Context) :
@@ -267,15 +307,19 @@ object ConferenceContactStore {
                     enrichment_status TEXT NOT NULL,
                     enrichment_json TEXT,
                     enrichment_error TEXT,
-                    last_enriched_at_ms INTEGER
+                    last_enriched_at_ms INTEGER,
+                    conversation_snippet TEXT,
+                    last_conversation_at_ms INTEGER
                 )
                 """.trimIndent(),
             )
         }
 
         override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-            db.execSQL("DROP TABLE IF EXISTS $TABLE_NAME")
-            onCreate(db)
+            if (oldVersion < 2) {
+                db.execSQL("ALTER TABLE $TABLE_NAME ADD COLUMN conversation_snippet TEXT")
+                db.execSQL("ALTER TABLE $TABLE_NAME ADD COLUMN last_conversation_at_ms INTEGER")
+            }
         }
     }
 }

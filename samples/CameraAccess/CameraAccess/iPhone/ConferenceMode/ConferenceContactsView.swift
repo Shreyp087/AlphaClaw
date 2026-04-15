@@ -142,6 +142,17 @@ private struct ConferenceContactRow: View {
         }
       }
 
+      if let conversationSnippet = contact.conversationSnippet, !conversationSnippet.isEmpty {
+        VStack(alignment: .leading, spacing: 4) {
+          Text("Conversation")
+            .font(.caption.weight(.semibold))
+            .foregroundColor(.secondary)
+          Text(conversationSnippet)
+            .font(.caption)
+            .foregroundColor(.secondary)
+        }
+      }
+
       if contact.canRetryEnrichment {
         HStack {
           Spacer()

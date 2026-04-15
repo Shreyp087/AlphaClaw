@@ -165,6 +165,22 @@ private fun ConferenceContactCard(
             }
         }
 
+        if (contact.hasConversationSnippet) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    "Conversation",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    contact.conversationSnippet.orEmpty(),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+
         if (contact.canRetryEnrichment) {
             Row(
                 modifier = Modifier.fillMaxWidth(),

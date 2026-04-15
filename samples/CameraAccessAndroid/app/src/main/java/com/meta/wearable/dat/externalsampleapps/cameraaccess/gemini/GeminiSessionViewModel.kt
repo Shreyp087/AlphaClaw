@@ -61,6 +61,9 @@ class GeminiSessionViewModel : ViewModel() {
     private var stateObservationJob: Job? = null
     private var conferenceProcessor = ConferenceExtractionProcessor(ConferenceModeConfig(enabled = false))
     private val enrichmentJobs = mutableMapOf<String, Job>()
+    private var activeConferenceContactId: String? = null
+    private var currentConversationUserText: String = ""
+    private var currentConversationAssistantText: String = ""
 
     var streamingMode: StreamingMode = StreamingMode.GLASSES
 
@@ -75,6 +78,9 @@ class GeminiSessionViewModel : ViewModel() {
         }
 
         conferenceProcessor = ConferenceExtractionProcessor(ConferenceModeConfig.current())
+        activeConferenceContactId = null
+        currentConversationUserText = ""
+        currentConversationAssistantText = ""
         _uiState.value = _uiState.value.copy(
             isGeminiActive = true,
             conferenceModeEnabled = SettingsManager.conferenceModeEnabled,
@@ -97,10 +103,12 @@ class GeminiSessionViewModel : ViewModel() {
         }
 
         geminiService.onTurnComplete = {
+            flushConferenceConversationIfNeeded()
             _uiState.value = _uiState.value.copy(userTranscript = "")
         }
 
         geminiService.onInputTranscription = { text ->
+            currentConversationUserText += text
             _uiState.value = _uiState.value.copy(
                 userTranscript = _uiState.value.userTranscript + text,
                 aiTranscript = ""
@@ -108,6 +116,7 @@ class GeminiSessionViewModel : ViewModel() {
         }
 
         geminiService.onOutputTranscription = { text ->
+            currentConversationAssistantText += text
             _uiState.value = _uiState.value.copy(
                 aiTranscript = _uiState.value.aiTranscript + text
             )
@@ -213,10 +222,14 @@ class GeminiSessionViewModel : ViewModel() {
         toolCallRouter = null
         enrichmentJobs.values.forEach { it.cancel() }
         enrichmentJobs.clear()
+        flushConferenceConversationIfNeeded()
         audioManager.stopCapture()
         geminiService.disconnect()
         stateObservationJob?.cancel()
         stateObservationJob = null
+        activeConferenceContactId = null
+        currentConversationUserText = ""
+        currentConversationAssistantText = ""
         _uiState.value = GeminiUiState(conferenceModeEnabled = SettingsManager.conferenceModeEnabled)
     }
 
@@ -251,6 +264,7 @@ class GeminiSessionViewModel : ViewModel() {
                 _uiState.value = _uiState.value.copy(lastConferenceExtraction = result.extraction)
                 logConferenceExtraction(result.extraction, "accepted")
                 if (contact != null) {
+                    activeConferenceContactId = contact.id
                     scheduleConferenceEnrichmentIfNeeded(contact)
                 }
                 buildLocalToolResponse(
@@ -322,6 +336,34 @@ class GeminiSessionViewModel : ViewModel() {
         }
 
         enrichmentJobs[contact.id] = job
+    }
+
+    private fun flushConferenceConversationIfNeeded() {
+        if (!SettingsManager.conferenceModeEnabled) {
+            currentConversationUserText = ""
+            currentConversationAssistantText = ""
+            return
+        }
+
+        val contactId = activeConferenceContactId ?: run {
+            currentConversationUserText = ""
+            currentConversationAssistantText = ""
+            return
+        }
+
+        val userSnippet = currentConversationUserText.trim()
+        val assistantSnippet = currentConversationAssistantText.trim()
+        val mergedSnippet = buildList {
+            if (userSnippet.isNotEmpty()) add("User: $userSnippet")
+            if (assistantSnippet.isNotEmpty()) add("Assistant: $assistantSnippet")
+        }.joinToString(separator = "\n")
+
+        currentConversationUserText = ""
+        currentConversationAssistantText = ""
+
+        if (mergedSnippet.isNotEmpty()) {
+            ConferenceContactStore.appendConversationSnippet(contactId, mergedSnippet)
+        }
     }
 
     private fun buildLocalToolResponse(

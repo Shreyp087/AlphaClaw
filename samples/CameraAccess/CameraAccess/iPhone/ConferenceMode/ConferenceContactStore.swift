@@ -37,7 +37,7 @@ final class ConferenceContactStore {
       let sql = """
       SELECT id, dedupe_key, name, company, role, source_type, confidence, observed_text,
              disposition, first_seen_at, last_seen_at, enrichment_status, enrichment_json,
-             enrichment_error, last_enriched_at
+             enrichment_error, last_enriched_at, conversation_snippet, last_conversation_at
       FROM conference_contacts
       ORDER BY last_seen_at DESC
       LIMIT ?;
@@ -67,7 +67,7 @@ final class ConferenceContactStore {
       let sql = """
       SELECT id, dedupe_key, name, company, role, source_type, confidence, observed_text,
              disposition, first_seen_at, last_seen_at, enrichment_status, enrichment_json,
-             enrichment_error, last_enriched_at
+             enrichment_error, last_enriched_at, conversation_snippet, last_conversation_at
       FROM conference_contacts
       WHERE id = ?
       LIMIT 1;
@@ -111,7 +111,9 @@ final class ConferenceContactStore {
           enrichmentStatus: existing.enrichmentStatus,
           enrichment: existing.enrichment,
           enrichmentError: existing.enrichmentError,
-          lastEnrichedAt: existing.lastEnrichedAt
+          lastEnrichedAt: existing.lastEnrichedAt,
+          conversationSnippet: existing.conversationSnippet,
+          lastConversationAt: existing.lastConversationAt
         )
 
         save(contact: merged, db: db)
@@ -133,7 +135,9 @@ final class ConferenceContactStore {
         enrichmentStatus: .notRequested,
         enrichment: nil,
         enrichmentError: nil,
-        lastEnrichedAt: nil
+        lastEnrichedAt: nil,
+        conversationSnippet: nil,
+        lastConversationAt: nil
       )
 
       save(contact: contact, db: db)
@@ -165,7 +169,9 @@ final class ConferenceContactStore {
         enrichmentStatus: .queued,
         enrichment: contact.enrichment,
         enrichmentError: nil,
-        lastEnrichedAt: contact.lastEnrichedAt
+        lastEnrichedAt: contact.lastEnrichedAt,
+        conversationSnippet: contact.conversationSnippet,
+        lastConversationAt: contact.lastConversationAt
       )
       save(contact: updated, db: db)
       return true
@@ -196,7 +202,9 @@ final class ConferenceContactStore {
         enrichmentStatus: .completed,
         enrichment: payload,
         enrichmentError: nil,
-        lastEnrichedAt: completedAt
+        lastEnrichedAt: completedAt,
+        conversationSnippet: contact.conversationSnippet,
+        lastConversationAt: contact.lastConversationAt
       )
       save(contact: updated, db: db)
     }
@@ -204,6 +212,40 @@ final class ConferenceContactStore {
 
   func failEnrichment(contactID: String, error: String) {
     updateStatus(contactID: contactID, status: .failed, error: error)
+  }
+
+  func appendConversationSnippet(contactID: String, snippet: String, observedAt: Date = Date()) {
+    let cleanedSnippet = snippet.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !cleanedSnippet.isEmpty else { return }
+
+    queue.sync {
+      openDatabaseIfNeeded()
+      guard let db, let contact = fetchByID(contactID, db: db) else { return }
+
+      let updated = ConferenceContact(
+        id: contact.id,
+        dedupeKey: contact.dedupeKey,
+        name: contact.name,
+        company: contact.company,
+        role: contact.role,
+        sourceType: contact.sourceType,
+        confidence: contact.confidence,
+        observedText: contact.observedText,
+        disposition: contact.disposition,
+        firstSeenAt: contact.firstSeenAt,
+        lastSeenAt: contact.lastSeenAt,
+        enrichmentStatus: contact.enrichmentStatus,
+        enrichment: contact.enrichment,
+        enrichmentError: contact.enrichmentError,
+        lastEnrichedAt: contact.lastEnrichedAt,
+        conversationSnippet: Self.mergeConversationSnippet(
+          existing: contact.conversationSnippet,
+          newSnippet: cleanedSnippet
+        ),
+        lastConversationAt: observedAt
+      )
+      save(contact: updated, db: db)
+    }
   }
 
   // MARK: - Private
@@ -228,7 +270,9 @@ final class ConferenceContactStore {
         enrichmentStatus: status,
         enrichment: contact.enrichment,
         enrichmentError: error,
-        lastEnrichedAt: contact.lastEnrichedAt
+        lastEnrichedAt: contact.lastEnrichedAt,
+        conversationSnippet: contact.conversationSnippet,
+        lastConversationAt: contact.lastConversationAt
       )
       save(contact: updated, db: db)
     }
@@ -260,17 +304,21 @@ final class ConferenceContactStore {
       enrichment_status TEXT NOT NULL,
       enrichment_json TEXT,
       enrichment_error TEXT,
-      last_enriched_at REAL
+      last_enriched_at REAL,
+      conversation_snippet TEXT,
+      last_conversation_at REAL
     );
     """
     sqlite3_exec(db, sql, nil, nil, nil)
+    sqlite3_exec(db, "ALTER TABLE conference_contacts ADD COLUMN conversation_snippet TEXT;", nil, nil, nil)
+    sqlite3_exec(db, "ALTER TABLE conference_contacts ADD COLUMN last_conversation_at REAL;", nil, nil, nil)
   }
 
   private func fetchByDedupeKey(_ dedupeKey: String, db: OpaquePointer) -> ConferenceContact? {
     let sql = """
     SELECT id, dedupe_key, name, company, role, source_type, confidence, observed_text,
            disposition, first_seen_at, last_seen_at, enrichment_status, enrichment_json,
-           enrichment_error, last_enriched_at
+           enrichment_error, last_enriched_at, conversation_snippet, last_conversation_at
     FROM conference_contacts
     WHERE dedupe_key = ?
     LIMIT 1;
@@ -289,7 +337,7 @@ final class ConferenceContactStore {
     let sql = """
     SELECT id, dedupe_key, name, company, role, source_type, confidence, observed_text,
            disposition, first_seen_at, last_seen_at, enrichment_status, enrichment_json,
-           enrichment_error, last_enriched_at
+           enrichment_error, last_enriched_at, conversation_snippet, last_conversation_at
     FROM conference_contacts
     WHERE id = ?
     LIMIT 1;
@@ -309,8 +357,8 @@ final class ConferenceContactStore {
     INSERT OR REPLACE INTO conference_contacts (
       id, dedupe_key, name, company, role, source_type, confidence, observed_text,
       disposition, first_seen_at, last_seen_at, enrichment_status, enrichment_json,
-      enrichment_error, last_enriched_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+      enrichment_error, last_enriched_at, conversation_snippet, last_conversation_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
     """
 
     var statement: OpaquePointer?
@@ -339,6 +387,12 @@ final class ConferenceContactStore {
       sqlite3_bind_double(statement, 15, lastEnrichedAt.timeIntervalSince1970)
     } else {
       sqlite3_bind_null(statement, 15)
+    }
+    bind(text: contact.conversationSnippet, index: 16, statement: statement)
+    if let lastConversationAt = contact.lastConversationAt {
+      sqlite3_bind_double(statement, 17, lastConversationAt.timeIntervalSince1970)
+    } else {
+      sqlite3_bind_null(statement, 17)
     }
 
     sqlite3_step(statement)
@@ -374,6 +428,13 @@ final class ConferenceContactStore {
       lastEnrichedAt = Date(timeIntervalSince1970: sqlite3_column_double(statement, 14))
     }
 
+    let lastConversationAt: Date?
+    if sqlite3_column_type(statement, 16) == SQLITE_NULL {
+      lastConversationAt = nil
+    } else {
+      lastConversationAt = Date(timeIntervalSince1970: sqlite3_column_double(statement, 16))
+    }
+
     return ConferenceContact(
       id: id,
       dedupeKey: dedupeKey,
@@ -389,8 +450,34 @@ final class ConferenceContactStore {
       enrichmentStatus: enrichmentStatus,
       enrichment: enrichment,
       enrichmentError: readString(statement, index: 13),
-      lastEnrichedAt: lastEnrichedAt
+      lastEnrichedAt: lastEnrichedAt,
+      conversationSnippet: readString(statement, index: 15),
+      lastConversationAt: lastConversationAt
     )
+  }
+
+  static func mergeConversationSnippet(existing: String?, newSnippet: String, maxCharacters: Int = 1200) -> String {
+    let cleanedNewSnippet = newSnippet.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !cleanedNewSnippet.isEmpty else {
+      return existing?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    }
+
+    let cleanedExisting = existing?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    let merged: String
+    if cleanedExisting.isEmpty {
+      merged = cleanedNewSnippet
+    } else if cleanedExisting.contains(cleanedNewSnippet) {
+      merged = cleanedExisting
+    } else {
+      merged = "\(cleanedExisting)\n\n\(cleanedNewSnippet)"
+    }
+
+    if merged.count <= maxCharacters {
+      return merged
+    }
+
+    let index = merged.index(merged.endIndex, offsetBy: -maxCharacters)
+    return String(merged[index...]).trimmingCharacters(in: .whitespacesAndNewlines)
   }
 
   private func bind(text: String?, index: Int32, statement: OpaquePointer?) {

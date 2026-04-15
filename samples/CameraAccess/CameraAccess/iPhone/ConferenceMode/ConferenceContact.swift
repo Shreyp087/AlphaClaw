@@ -54,6 +54,8 @@ struct ConferenceContact: Identifiable, Equatable {
   let enrichment: ConferenceEnrichmentPayload?
   let enrichmentError: String?
   let lastEnrichedAt: Date?
+  let conversationSnippet: String?
+  let lastConversationAt: Date?
 
   var summaryText: String {
     [company, role]
@@ -71,5 +73,10 @@ struct ConferenceContact: Identifiable, Equatable {
 
   var isEnrichmentInFlight: Bool {
     enrichmentStatus == .queued || enrichmentStatus == .enriching
+  }
+
+  var hasConversationSnippet: Bool {
+    guard let conversationSnippet else { return false }
+    return !conversationSnippet.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 }

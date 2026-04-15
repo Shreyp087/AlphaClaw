@@ -23,6 +23,9 @@ class GeminiSessionViewModel: ObservableObject {
   private var stateObservation: Task<Void, Never>?
   private var conferenceProcessor = ConferenceExtractionProcessor()
   private var enrichmentTasks: [String: Task<Void, Never>] = [:]
+  private var activeConferenceContactID: String?
+  private var currentConversationUserText: String = ""
+  private var currentConversationAssistantText: String = ""
 
   var streamingMode: StreamingMode = .glasses
   var isConferenceModeEnabled: Bool { SettingsManager.shared.conferenceModeEnabled }
@@ -38,6 +41,9 @@ class GeminiSessionViewModel: ObservableObject {
     isGeminiActive = true
     lastConferenceExtraction = nil
     conferenceProcessor = ConferenceExtractionProcessor(config: .current)
+    activeConferenceContactID = nil
+    currentConversationUserText = ""
+    currentConversationAssistantText = ""
 
     // Wire audio callbacks
     audioManager.onAudioCaptured = { [weak self] data in
@@ -62,6 +68,7 @@ class GeminiSessionViewModel: ObservableObject {
     geminiService.onTurnComplete = { [weak self] in
       guard let self else { return }
       Task { @MainActor in
+        self.flushConferenceConversationIfNeeded()
         // Clear user transcript when AI finishes responding
         self.userTranscript = ""
       }
@@ -72,6 +79,7 @@ class GeminiSessionViewModel: ObservableObject {
       Task { @MainActor in
         self.userTranscript += text
         self.aiTranscript = ""
+        self.currentConversationUserText += text
       }
     }
 
@@ -79,6 +87,7 @@ class GeminiSessionViewModel: ObservableObject {
       guard let self else { return }
       Task { @MainActor in
         self.aiTranscript += text
+        self.currentConversationAssistantText += text
       }
     }
 
@@ -196,6 +205,7 @@ class GeminiSessionViewModel: ObservableObject {
     toolCallRouter = nil
     enrichmentTasks.values.forEach { $0.cancel() }
     enrichmentTasks.removeAll()
+    flushConferenceConversationIfNeeded()
     audioManager.stopCapture()
     geminiService.disconnect()
     stateObservation?.cancel()
@@ -207,6 +217,9 @@ class GeminiSessionViewModel: ObservableObject {
     aiTranscript = ""
     toolCallStatus = .idle
     lastConferenceExtraction = nil
+    activeConferenceContactID = nil
+    currentConversationUserText = ""
+    currentConversationAssistantText = ""
   }
 
   func sendVideoFrameIfThrottled(image: UIImage) {
@@ -233,6 +246,7 @@ class GeminiSessionViewModel: ObservableObject {
       lastConferenceExtraction = extraction
       logConferenceExtraction(extraction, event: "accepted")
       if let contact = conferenceStore.upsert(extraction: extraction) {
+        activeConferenceContactID = contact.id
         scheduleConferenceEnrichmentIfNeeded(for: contact)
       }
       return buildLocalToolResponse(
@@ -306,6 +320,32 @@ class GeminiSessionViewModel: ObservableObject {
     }
 
     enrichmentTasks[contactID] = task
+  }
+
+  private func flushConferenceConversationIfNeeded() {
+    guard isConferenceModeEnabled, let contactID = activeConferenceContactID else {
+      currentConversationUserText = ""
+      currentConversationAssistantText = ""
+      return
+    }
+
+    let userSnippet = currentConversationUserText.trimmingCharacters(in: .whitespacesAndNewlines)
+    let assistantSnippet = currentConversationAssistantText.trimmingCharacters(in: .whitespacesAndNewlines)
+
+    var transcriptParts: [String] = []
+    if !userSnippet.isEmpty {
+      transcriptParts.append("User: \(userSnippet)")
+    }
+    if !assistantSnippet.isEmpty {
+      transcriptParts.append("Assistant: \(assistantSnippet)")
+    }
+
+    currentConversationUserText = ""
+    currentConversationAssistantText = ""
+
+    let mergedSnippet = transcriptParts.joined(separator: "\n")
+    guard !mergedSnippet.isEmpty else { return }
+    conferenceStore.appendConversationSnippet(contactID: contactID, snippet: mergedSnippet)
   }
 
   private func buildLocalToolResponse(
