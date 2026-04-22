@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import UIKit
 
 @MainActor
 class GeminiSessionViewModel: ObservableObject {
@@ -45,8 +46,19 @@ class GeminiSessionViewModel: ObservableObject {
   }
 
   deinit {
-    removeAppLifecycleObservers()
-    cancelConversationFlushTask()
+    if let observer = resignActiveObserver {
+      NotificationCenter.default.removeObserver(observer)
+    }
+    if let observer = backgroundObserver {
+      NotificationCenter.default.removeObserver(observer)
+    }
+    if let observer = foregroundObserver {
+      NotificationCenter.default.removeObserver(observer)
+    }
+
+    conversationFlushTask?.cancel()
+    stateObservation?.cancel()
+    enrichmentTasks.values.forEach { $0.cancel() }
   }
 
   func startSession() async {
