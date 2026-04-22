@@ -349,8 +349,8 @@ class GeminiSessionViewModel: ObservableObject {
       switch result {
       case .success(let payload):
         conferenceStore.completeEnrichment(contactID: contactID, payload: payload)
-      case .failure(let message):
-        conferenceStore.failEnrichment(contactID: contactID, error: message)
+      case .failure(let error):
+        conferenceStore.failEnrichment(contactID: contactID, error: error.displayMessage)
       }
       self?.enrichmentTasks.removeValue(forKey: contactID)
     }

@@ -79,8 +79,8 @@ struct ConferenceContactsView: View {
       switch result {
       case .success(let payload):
         store.completeEnrichment(contactID: contact.id, payload: payload)
-      case .failure(let message):
-        store.failEnrichment(contactID: contact.id, error: message)
+      case .failure(let error):
+        store.failEnrichment(contactID: contact.id, error: error.displayMessage)
       }
     }
   }

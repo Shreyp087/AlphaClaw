@@ -1,5 +1,20 @@
 import Foundation
 
+enum ConferenceEnrichmentError: LocalizedError, Equatable {
+  case message(String)
+
+  var errorDescription: String? {
+    switch self {
+    case .message(let message):
+      return message
+    }
+  }
+
+  var displayMessage: String {
+    errorDescription ?? "Unknown conference enrichment error"
+  }
+}
+
 struct ConferenceEnrichmentClient {
   private let session: URLSession
   private let sessionKey = "agent:conference:networking"
@@ -8,13 +23,13 @@ struct ConferenceEnrichmentClient {
     self.session = session
   }
 
-  func enrich(contact: ConferenceContact) async -> Result<ConferenceEnrichmentPayload, String> {
+  func enrich(contact: ConferenceContact) async -> Result<ConferenceEnrichmentPayload, ConferenceEnrichmentError> {
     guard GeminiConfig.isOpenClawConfigured else {
-      return .failure("OpenClaw is not configured")
+      return .failure(.message("OpenClaw is not configured"))
     }
 
     guard let url = URL(string: "\(GeminiConfig.openClawHost):\(GeminiConfig.openClawPort)/v1/chat/completions") else {
-      return .failure("Invalid OpenClaw gateway URL")
+      return .failure(.message("Invalid OpenClaw gateway URL"))
     }
 
     var request = URLRequest(url: url)
@@ -42,7 +57,7 @@ struct ConferenceEnrichmentClient {
       guard let httpResponse = response as? HTTPURLResponse,
             (200...299).contains(httpResponse.statusCode) else {
         let code = (response as? HTTPURLResponse)?.statusCode ?? 0
-        return .failure("OpenClaw returned HTTP \(code)")
+        return .failure(.message("OpenClaw returned HTTP \(code)"))
       }
 
       guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -50,12 +65,12 @@ struct ConferenceEnrichmentClient {
             let first = choices.first,
             let message = first["message"] as? [String: Any],
             let content = message["content"] as? String else {
-        return .failure("OpenClaw returned an unexpected response shape")
+        return .failure(.message("OpenClaw returned an unexpected response shape"))
       }
 
       return .success(Self.parsePayload(from: content))
     } catch {
-      return .failure(error.localizedDescription)
+      return .failure(.message(error.localizedDescription))
     }
   }
 
