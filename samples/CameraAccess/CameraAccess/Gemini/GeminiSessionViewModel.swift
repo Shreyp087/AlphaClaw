@@ -85,12 +85,7 @@ class GeminiSessionViewModel: ObservableObject {
       Task { @MainActor in
         self.userTranscript = Self.mergeStreamingTranscript(existing: self.userTranscript, incoming: text)
         self.aiTranscript = ""
-        self.currentConversationUserText = Self.mergeStreamingTranscript(
-          existing: self.currentConversationUserText,
-          incoming: text
-        )
-        self.refreshPendingConferenceConversationSnippet()
-        self.scheduleConversationFlushIfNeeded()
+        self.captureConferenceInputTranscription(text)
       }
     }
 
@@ -98,12 +93,7 @@ class GeminiSessionViewModel: ObservableObject {
       guard let self else { return }
       Task { @MainActor in
         self.aiTranscript = Self.mergeStreamingTranscript(existing: self.aiTranscript, incoming: text)
-        self.currentConversationAssistantText = Self.mergeStreamingTranscript(
-          existing: self.currentConversationAssistantText,
-          incoming: text
-        )
-        self.refreshPendingConferenceConversationSnippet()
-        self.scheduleConversationFlushIfNeeded()
+        self.captureConferenceOutputTranscription(text)
       }
     }
 
@@ -345,12 +335,14 @@ class GeminiSessionViewModel: ObservableObject {
     cancelConversationFlushTask()
 
     guard isConferenceModeEnabled else {
-      currentConversationUserText = ""
-      currentConversationAssistantText = ""
+      clearConversationBuffer()
       return
     }
 
-    guard let contactID = activeConferenceContactID else { return }
+    guard let contactID = activeConferenceContactID else {
+      clearConversationBuffer()
+      return
+    }
 
     let mergedSnippet = Self.buildConversationSnippet(
       userText: currentConversationUserText,
@@ -378,7 +370,7 @@ class GeminiSessionViewModel: ObservableObject {
   private func scheduleConversationFlushIfNeeded() {
     cancelConversationFlushTask()
 
-    guard isConferenceModeEnabled, activeConferenceContactID != nil else { return }
+    guard isTrackingConferenceConversation else { return }
     let hasConversationText = !currentConversationUserText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
       !currentConversationAssistantText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     guard hasConversationText else { return }
@@ -397,6 +389,41 @@ class GeminiSessionViewModel: ObservableObject {
   private func cancelConversationFlushTask() {
     conversationFlushTask?.cancel()
     conversationFlushTask = nil
+  }
+
+  private func captureConferenceInputTranscription(_ text: String) {
+    guard isTrackingConferenceConversation else {
+      clearConversationBuffer()
+      return
+    }
+
+    currentConversationUserText = Self.mergeStreamingTranscript(
+      existing: currentConversationUserText,
+      incoming: text
+    )
+    refreshPendingConferenceConversationSnippet()
+    scheduleConversationFlushIfNeeded()
+  }
+
+  private func captureConferenceOutputTranscription(_ text: String) {
+    guard isTrackingConferenceConversation else {
+      clearConversationBuffer()
+      return
+    }
+
+    currentConversationAssistantText = Self.mergeStreamingTranscript(
+      existing: currentConversationAssistantText,
+      incoming: text
+    )
+    refreshPendingConferenceConversationSnippet()
+    scheduleConversationFlushIfNeeded()
+  }
+
+  private func clearConversationBuffer() {
+    cancelConversationFlushTask()
+    currentConversationUserText = ""
+    currentConversationAssistantText = ""
+    pendingConferenceConversationSnippet = nil
   }
 
   private func refreshPendingConferenceConversationSnippet() {
@@ -425,6 +452,10 @@ class GeminiSessionViewModel: ObservableObject {
   }
 
   private static let conversationIdleFlushDelayNanoseconds: UInt64 = 6_000_000_000
+
+  private var isTrackingConferenceConversation: Bool {
+    isConferenceModeEnabled && activeConferenceContactID != nil
+  }
 
   static func mergeStreamingTranscript(existing: String, incoming: String) -> String {
     let cleanedExisting = existing.trimmingCharacters(in: .whitespacesAndNewlines)
