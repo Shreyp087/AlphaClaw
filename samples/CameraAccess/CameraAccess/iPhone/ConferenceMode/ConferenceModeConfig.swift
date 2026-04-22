@@ -1,6 +1,6 @@
 import Foundation
 
-struct ConferenceModeConfig: Equatable {
+struct ConferenceModeConfig: Equatable, Sendable {
   let enabled: Bool
   let acceptedConfidenceMin: Double
   let reviewConfidenceMin: Double

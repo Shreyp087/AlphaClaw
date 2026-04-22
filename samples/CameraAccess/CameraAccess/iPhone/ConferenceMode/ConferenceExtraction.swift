@@ -1,6 +1,6 @@
 import Foundation
 
-enum ConferenceSourceType: String, CaseIterable {
+enum ConferenceSourceType: String, CaseIterable, Sendable {
   case badge
   case card
   case booth
@@ -11,7 +11,7 @@ enum ConferenceSourceType: String, CaseIterable {
   }
 }
 
-enum ConferenceExtractionDisposition: String, Equatable {
+enum ConferenceExtractionDisposition: String, Equatable, Sendable {
   case accepted
   case review
 
@@ -20,7 +20,7 @@ enum ConferenceExtractionDisposition: String, Equatable {
   }
 }
 
-struct ConferenceExtraction: Equatable {
+struct ConferenceExtraction: Equatable, Sendable {
   let name: String
   let company: String?
   let role: String?

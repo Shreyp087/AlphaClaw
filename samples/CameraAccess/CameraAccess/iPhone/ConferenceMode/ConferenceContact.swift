@@ -1,6 +1,6 @@
 import Foundation
 
-enum ConferenceEnrichmentStatus: String, CaseIterable, Codable, Equatable {
+enum ConferenceEnrichmentStatus: String, CaseIterable, Codable, Equatable, Sendable {
   case notRequested
   case queued
   case enriching
@@ -18,7 +18,7 @@ enum ConferenceEnrichmentStatus: String, CaseIterable, Codable, Equatable {
   }
 }
 
-struct ConferenceEnrichmentPayload: Codable, Equatable {
+struct ConferenceEnrichmentPayload: Codable, Equatable, Sendable {
   let headline: String?
   let companySummary: String?
   let talkingPoints: [String]
@@ -38,7 +38,7 @@ struct ConferenceEnrichmentPayload: Codable, Equatable {
   }
 }
 
-struct ConferenceContact: Identifiable, Equatable {
+struct ConferenceContact: Identifiable, Equatable, Sendable {
   let id: String
   let dedupeKey: String
   let name: String

@@ -1,6 +1,6 @@
 import Foundation
 
-enum ConferenceExtractionHandlingResult: Equatable {
+enum ConferenceExtractionHandlingResult: Equatable, Sendable {
   case accepted(ConferenceExtraction)
   case review(ConferenceExtraction)
   case ignoredLowConfidence(Double)
@@ -8,7 +8,7 @@ enum ConferenceExtractionHandlingResult: Equatable {
   case invalid(String)
 }
 
-struct ConferenceExtractionProcessor {
+struct ConferenceExtractionProcessor: Sendable {
   private(set) var recentDetections: [String: Date] = [:]
   let config: ConferenceModeConfig
 

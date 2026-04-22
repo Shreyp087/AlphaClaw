@@ -1,6 +1,6 @@
 import Foundation
 
-enum ConferenceEnrichmentError: LocalizedError, Equatable {
+enum ConferenceEnrichmentError: LocalizedError, Equatable, Sendable {
   case message(String)
 
   var errorDescription: String? {
@@ -15,7 +15,7 @@ enum ConferenceEnrichmentError: LocalizedError, Equatable {
   }
 }
 
-struct ConferenceEnrichmentClient {
+struct ConferenceEnrichmentClient: Sendable {
   private let session: URLSession
   private let sessionKey = "agent:conference:networking"
 

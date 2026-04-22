@@ -3,7 +3,7 @@ import SQLite3
 
 private let SQLITE_TRANSIENT = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
 
-final class ConferenceContactStore {
+final class ConferenceContactStore: @unchecked Sendable {
   static let shared = ConferenceContactStore()
 
   private let queue = DispatchQueue(label: "conference-contact-store")
