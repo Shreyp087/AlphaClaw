@@ -136,7 +136,10 @@ class GeminiLiveService: ObservableObject {
           ]
         ]
       ]
-      self?.sendJSON(json)
+      guard let payload = Self.serializeJSON(json) else { return }
+      Task { @MainActor [weak self] in
+        self?.sendSerializedMessage(payload)
+      }
     }
   }
 
@@ -153,13 +156,19 @@ class GeminiLiveService: ObservableObject {
           ]
         ]
       ]
-      self?.sendJSON(json)
+      guard let payload = Self.serializeJSON(json) else { return }
+      Task { @MainActor [weak self] in
+        self?.sendSerializedMessage(payload)
+      }
     }
   }
 
   func sendToolResponse(_ response: [String: Any]) {
     sendQueue.async { [weak self] in
-      self?.sendJSON(response)
+      guard let payload = Self.serializeJSON(response) else { return }
+      Task { @MainActor [weak self] in
+        self?.sendSerializedMessage(payload)
+      }
     }
   }
 
@@ -173,7 +182,10 @@ class GeminiLiveService: ObservableObject {
           ]
         ]
       ]
-      self?.sendJSON(msg)
+      guard let payload = Self.serializeJSON(msg) else { return }
+      Task { @MainActor [weak self] in
+        self?.sendSerializedMessage(payload)
+      }
     }
   }
 
@@ -235,11 +247,22 @@ class GeminiLiveService: ObservableObject {
   }
 
   private func sendJSON(_ json: [String: Any]) {
-    guard let data = try? JSONSerialization.data(withJSONObject: json),
-          let string = String(data: data, encoding: .utf8) else {
+    guard let string = Self.serializeJSON(json) else {
       return
     }
+    sendSerializedMessage(string)
+  }
+
+  private func sendSerializedMessage(_ string: String) {
     webSocketTask?.send(.string(string)) { _ in }
+  }
+
+  nonisolated private static func serializeJSON(_ json: [String: Any]) -> String? {
+    guard let data = try? JSONSerialization.data(withJSONObject: json),
+          let string = String(data: data, encoding: .utf8) else {
+      return nil
+    }
+    return string
   }
 
   private func startReceiving() {
