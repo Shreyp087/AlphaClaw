@@ -88,11 +88,13 @@ class GeminiLiveService: ObservableObject {
       self.webSocketTask?.resume()
 
       // Timeout after 15 seconds
-      Task { @MainActor in
+      Task {
         try? await Task.sleep(nanoseconds: 15_000_000_000)
-        self.resolveConnect(success: false)
-        if self.connectionState == .connecting || self.connectionState == .settingUp {
-          self.connectionState = .error("Connection timed out")
+        await MainActor.run {
+          self.resolveConnect(success: false)
+          if self.connectionState == .connecting || self.connectionState == .settingUp {
+            self.connectionState = .error("Connection timed out")
+          }
         }
       }
     }
@@ -241,7 +243,7 @@ class GeminiLiveService: ObservableObject {
   }
 
   private func startReceiving() {
-    receiveTask = Task { @MainActor [weak self] in
+    receiveTask = Task { [weak self] in
       guard let self else { return }
       while !Task.isCancelled {
         guard let task = self.webSocketTask else { break }
@@ -260,10 +262,12 @@ class GeminiLiveService: ObservableObject {
         } catch {
           if !Task.isCancelled {
             let reason = error.localizedDescription
-            self.resolveConnect(success: false)
-            self.connectionState = .disconnected
-            self.isModelSpeaking = false
-            self.onDisconnected?(reason)
+            await MainActor.run {
+              self.resolveConnect(success: false)
+              self.connectionState = .disconnected
+              self.isModelSpeaking = false
+              self.onDisconnected?(reason)
+            }
           }
           break
         }
