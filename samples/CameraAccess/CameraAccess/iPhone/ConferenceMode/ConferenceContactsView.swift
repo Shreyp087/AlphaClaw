@@ -1,5 +1,6 @@
 import SwiftUI
 
+@MainActor
 struct ConferenceContactsView: View {
   @Environment(\.dismiss) private var dismiss
   @State private var contacts: [ConferenceContact] = []
@@ -63,12 +64,10 @@ struct ConferenceContactsView: View {
     guard !retryingContactIDs.contains(contact.id) else { return }
 
     retryingContactIDs.insert(contact.id)
-    Task {
+    Task { @MainActor in
       defer {
-        Task { @MainActor in
-          retryingContactIDs.remove(contact.id)
-          reload()
-        }
+        retryingContactIDs.remove(contact.id)
+        reload()
       }
 
       guard store.queueEnrichmentIfNeeded(contactID: contact.id) else { return }

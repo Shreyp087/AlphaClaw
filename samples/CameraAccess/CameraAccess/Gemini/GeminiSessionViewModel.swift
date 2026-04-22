@@ -172,7 +172,7 @@ class GeminiSessionViewModel: ObservableObject {
     }
 
     // Observe service state
-    stateObservation = Task { [weak self] in
+    stateObservation = Task { @MainActor [weak self] in
       guard let self else { return }
       while !Task.isCancelled {
         try? await Task.sleep(nanoseconds: 100_000_000) // 100ms
@@ -354,7 +354,7 @@ class GeminiSessionViewModel: ObservableObject {
     guard conferenceStore.queueEnrichmentIfNeeded(contactID: contact.id) else { return }
 
     let contactID = contact.id
-    let task = Task(priority: .utility) { [weak self, conferenceEnrichmentClient, conferenceStore] in
+    let task = Task(priority: .utility) { @MainActor [weak self, conferenceEnrichmentClient, conferenceStore] in
       conferenceStore.markEnrichmentRunning(contactID: contactID)
       let latestContact = conferenceStore.fetchContact(id: contactID) ?? contact
       let result = await conferenceEnrichmentClient.enrich(contact: latestContact)
