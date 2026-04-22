@@ -121,6 +121,8 @@ jobs:
           print(f"Using device type: {device_type_id}")
           PY
 
+      - name: Boot simulator for CI
+        run: |
           xcrun simctl boot "${{ steps.simulator.outputs.udid }}" || true
           xcrun simctl bootstatus "${{ steps.simulator.outputs.udid }}" -b
 
