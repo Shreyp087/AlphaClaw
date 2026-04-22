@@ -1,4 +1,5 @@
 import Foundation
+import SQLite3
 import XCTest
 
 @testable import CameraAccess
@@ -293,6 +294,38 @@ final class ConferenceModeTests: XCTestCase {
     XCTAssertEqual(store.fetchContacts().first?.id, earlierContact.id)
   }
 
+  func testConferenceContactStoreMigratesLegacySchemaForConversationColumns() throws {
+    let url = FileManager.default.temporaryDirectory
+      .appendingPathComponent(UUID().uuidString)
+      .appendingPathExtension("sqlite")
+    temporaryDatabaseURLs.append(url)
+
+    try createLegacyConferenceContactsTable(at: url)
+
+    let store = ConferenceContactStore(databaseURL: url)
+    let extraction = ConferenceExtraction(
+      name: "Mira Solis",
+      company: "Northstar Labs",
+      role: "Founder",
+      sourceType: .badge,
+      confidence: 0.9,
+      observedText: "Mira Solis Northstar Labs",
+      disposition: .accepted,
+      detectedAt: Date(timeIntervalSince1970: 15)
+    )
+
+    let contact = try XCTUnwrap(store.upsert(extraction: extraction))
+    store.appendConversationSnippet(
+      contactID: contact.id,
+      snippet: "User: Great meeting you",
+      observedAt: Date(timeIntervalSince1970: 20)
+    )
+
+    let updated = try XCTUnwrap(store.fetchContact(id: contact.id))
+    XCTAssertEqual(updated.conversationSnippet, "User: Great meeting you")
+    XCTAssertEqual(updated.lastConversationAt, Date(timeIntervalSince1970: 20))
+  }
+
   func testMergeStreamingTranscriptPrefersLongerCumulativePartial() {
     let merged = GeminiSessionViewModel.mergeStreamingTranscript(
       existing: "Hello there",
@@ -364,5 +397,40 @@ final class ConferenceModeTests: XCTestCase {
       .appendingPathExtension("sqlite")
     temporaryDatabaseURLs.append(url)
     return ConferenceContactStore(databaseURL: url)
+  }
+
+  private func createLegacyConferenceContactsTable(at url: URL) throws {
+    var db: OpaquePointer?
+    guard sqlite3_open(url.path, &db) == SQLITE_OK, let db else {
+      XCTFail("Failed to open SQLite database at \(url.path)")
+      return
+    }
+    defer { sqlite3_close(db) }
+
+    let sql = """
+    CREATE TABLE conference_contacts (
+      id TEXT PRIMARY KEY NOT NULL,
+      dedupe_key TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      company TEXT,
+      role TEXT,
+      source_type TEXT NOT NULL,
+      confidence REAL NOT NULL,
+      observed_text TEXT,
+      disposition TEXT NOT NULL,
+      first_seen_at REAL NOT NULL,
+      last_seen_at REAL NOT NULL,
+      enrichment_status TEXT NOT NULL,
+      enrichment_json TEXT,
+      enrichment_error TEXT,
+      last_enriched_at REAL
+    );
+    """
+
+    guard sqlite3_exec(db, sql, nil, nil, nil) == SQLITE_OK else {
+      let message = sqlite3_errmsg(db).flatMap { String(cString: $0) } ?? "unknown SQLite error"
+      XCTFail("Failed to create legacy schema: \(message)")
+      return
+    }
   }
 }

@@ -309,9 +309,21 @@ final class ConferenceContactStore {
       last_conversation_at REAL
     );
     """
-    sqlite3_exec(db, sql, nil, nil, nil)
-    sqlite3_exec(db, "ALTER TABLE conference_contacts ADD COLUMN conversation_snippet TEXT;", nil, nil, nil)
-    sqlite3_exec(db, "ALTER TABLE conference_contacts ADD COLUMN last_conversation_at REAL;", nil, nil, nil)
+    executeStatement(sql, db: db)
+
+    let existingColumns = fetchExistingColumns(in: "conference_contacts", db: db)
+    ensureColumnExists(
+      name: "conversation_snippet",
+      definition: "TEXT",
+      existingColumns: existingColumns,
+      db: db
+    )
+    ensureColumnExists(
+      name: "last_conversation_at",
+      definition: "REAL",
+      existingColumns: existingColumns,
+      db: db
+    )
   }
 
   private func fetchByDedupeKey(_ dedupeKey: String, db: OpaquePointer) -> ConferenceContact? {
@@ -491,5 +503,34 @@ final class ConferenceContactStore {
   private func readString(_ statement: OpaquePointer?, index: Int32) -> String? {
     guard let text = sqlite3_column_text(statement, index) else { return nil }
     return String(cString: text)
+  }
+
+  private func fetchExistingColumns(in table: String, db: OpaquePointer) -> Set<String> {
+    let sql = "PRAGMA table_info(\(table));"
+    var statement: OpaquePointer?
+    guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else { return [] }
+    defer { sqlite3_finalize(statement) }
+
+    var columns = Set<String>()
+    while sqlite3_step(statement) == SQLITE_ROW {
+      if let columnName = readString(statement, index: 1) {
+        columns.insert(columnName)
+      }
+    }
+    return columns
+  }
+
+  private func ensureColumnExists(
+    name: String,
+    definition: String,
+    existingColumns: Set<String>,
+    db: OpaquePointer
+  ) {
+    guard !existingColumns.contains(name) else { return }
+    executeStatement("ALTER TABLE conference_contacts ADD COLUMN \(name) \(definition);", db: db)
+  }
+
+  private func executeStatement(_ sql: String, db: OpaquePointer) {
+    sqlite3_exec(db, sql, nil, nil, nil)
   }
 }
