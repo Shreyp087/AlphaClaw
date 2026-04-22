@@ -7,10 +7,12 @@
  */
 
 import Foundation
+import XCTest
+
+#if canImport(MWDATMockDevice)
 import MWDATCore
 import MWDATMockDevice
 import SwiftUI
-import XCTest
 
 @testable import CameraAccess
 
@@ -156,3 +158,4 @@ class ViewModelIntegrationTests: XCTestCase {
     XCTAssertTrue([.stopped, .waiting].contains(viewModel.streamingStatus))
   }
 }
+#endif
