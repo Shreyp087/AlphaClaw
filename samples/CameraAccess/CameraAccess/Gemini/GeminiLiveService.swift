@@ -33,6 +33,8 @@ class GeminiLiveService: ObservableObject {
   private let delegate = WebSocketDelegate()
   private var urlSession: URLSession!
   private let sendQueue = DispatchQueue(label: "gemini.send", qos: .userInitiated)
+  private var configuredSystemInstruction: String?
+  private var configuredConferenceModeEnabled: Bool?
 
   init() {
     let config = URLSessionConfiguration.default
@@ -112,7 +114,14 @@ class GeminiLiveService: ObservableObject {
     onToolCallCancellation = nil
     connectionState = .disconnected
     isModelSpeaking = false
+    configuredSystemInstruction = nil
+    configuredConferenceModeEnabled = nil
     resolveConnect(success: false)
+  }
+
+  func configureSession(systemInstruction: String, conferenceModeEnabled: Bool) {
+    configuredSystemInstruction = systemInstruction
+    configuredConferenceModeEnabled = conferenceModeEnabled
   }
 
   func sendAudio(data: Data) {
@@ -178,6 +187,9 @@ class GeminiLiveService: ObservableObject {
   }
 
   private func sendSetupMessage() {
+    let systemInstruction = configuredSystemInstruction ?? GeminiConfig.systemInstruction
+    let conferenceModeEnabled = configuredConferenceModeEnabled ?? GeminiConfig.isConferenceModeEnabled
+
     let setup: [String: Any] = [
       "setup": [
         "model": GeminiConfig.model,
@@ -189,13 +201,13 @@ class GeminiLiveService: ObservableObject {
         ],
         "systemInstruction": [
           "parts": [
-            ["text": GeminiConfig.systemInstruction]
+            ["text": systemInstruction]
           ]
         ],
         "tools": [
           [
             "functionDeclarations": ToolDeclarations.allDeclarations(
-              conferenceModeEnabled: GeminiConfig.isConferenceModeEnabled
+              conferenceModeEnabled: conferenceModeEnabled
             )
           ]
         ],

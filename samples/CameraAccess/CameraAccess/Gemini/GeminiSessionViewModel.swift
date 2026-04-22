@@ -32,9 +32,13 @@ class GeminiSessionViewModel: ObservableObject {
   private var activeConferenceContactID: String?
   private var currentConversationUserText: String = ""
   private var currentConversationAssistantText: String = ""
+  private var sessionConferenceModeEnabled: Bool = false
+  private var sessionSystemInstruction: String = GeminiConfig.defaultSystemInstruction
 
   var streamingMode: StreamingMode = .glasses
-  var isConferenceModeEnabled: Bool { SettingsManager.shared.conferenceModeEnabled }
+  var isConferenceModeEnabled: Bool {
+    isGeminiActive ? sessionConferenceModeEnabled : SettingsManager.shared.conferenceModeEnabled
+  }
 
   init() {
     observeAppLifecycle()
@@ -54,6 +58,11 @@ class GeminiSessionViewModel: ObservableObject {
     }
 
     isGeminiActive = true
+    sessionConferenceModeEnabled = SettingsManager.shared.conferenceModeEnabled
+    sessionSystemInstruction = ConferencePrompts.activeSystemInstruction(
+      conferenceModeEnabled: sessionConferenceModeEnabled,
+      fallbackPrompt: SettingsManager.shared.geminiSystemPrompt
+    )
     lastConferenceExtraction = nil
     activeConferenceContact = nil
     pendingConferenceConversationSnippet = nil
@@ -173,6 +182,10 @@ class GeminiSessionViewModel: ObservableObject {
     }
 
     // Connect to Gemini and wait for setupComplete
+    geminiService.configureSession(
+      systemInstruction: sessionSystemInstruction,
+      conferenceModeEnabled: sessionConferenceModeEnabled
+    )
     let setupOk = await geminiService.connect()
 
     if !setupOk {
@@ -241,6 +254,8 @@ class GeminiSessionViewModel: ObservableObject {
     activeConferenceContactID = nil
     currentConversationUserText = ""
     currentConversationAssistantText = ""
+    sessionConferenceModeEnabled = false
+    sessionSystemInstruction = GeminiConfig.defaultSystemInstruction
   }
 
   func sendVideoFrameIfThrottled(image: UIImage) {
