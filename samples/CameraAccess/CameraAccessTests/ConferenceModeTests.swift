@@ -293,6 +293,42 @@ final class ConferenceModeTests: XCTestCase {
     XCTAssertEqual(store.fetchContacts().first?.id, earlierContact.id)
   }
 
+  func testMergeStreamingTranscriptPrefersLongerCumulativePartial() {
+    let merged = GeminiSessionViewModel.mergeStreamingTranscript(
+      existing: "Hello there",
+      incoming: "Hello there friend"
+    )
+
+    XCTAssertEqual(merged, "Hello there friend")
+  }
+
+  func testMergeStreamingTranscriptKeepsLongerTranscriptWhenShorterPartialArrives() {
+    let merged = GeminiSessionViewModel.mergeStreamingTranscript(
+      existing: "Hello there friend",
+      incoming: "Hello there"
+    )
+
+    XCTAssertEqual(merged, "Hello there friend")
+  }
+
+  func testMergeStreamingTranscriptMergesOverlappingChunksWithoutDuplication() {
+    let merged = GeminiSessionViewModel.mergeStreamingTranscript(
+      existing: "Great to meet",
+      incoming: "meet you today"
+    )
+
+    XCTAssertEqual(merged, "Great to meet you today")
+  }
+
+  func testMergeStreamingTranscriptSeparatesDistinctChunks() {
+    let merged = GeminiSessionViewModel.mergeStreamingTranscript(
+      existing: "Looking forward",
+      incoming: "to chatting"
+    )
+
+    XCTAssertEqual(merged, "Looking forward to chatting")
+  }
+
   private func makeProcessor() -> ConferenceExtractionProcessor {
     ConferenceExtractionProcessor(
       config: ConferenceModeConfig(

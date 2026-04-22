@@ -24,6 +24,7 @@ class GeminiSessionViewModel: ObservableObject {
   private var stateObservation: Task<Void, Never>?
   private var conferenceProcessor = ConferenceExtractionProcessor()
   private var enrichmentTasks: [String: Task<Void, Never>] = [:]
+  private var conversationFlushTask: Task<Void, Never>?
   private var activeConferenceContactID: String?
   private var currentConversationUserText: String = ""
   private var currentConversationAssistantText: String = ""
@@ -43,6 +44,7 @@ class GeminiSessionViewModel: ObservableObject {
     lastConferenceExtraction = nil
     activeConferenceContact = nil
     conferenceProcessor = ConferenceExtractionProcessor(config: .current)
+    cancelConversationFlushTask()
     activeConferenceContactID = nil
     currentConversationUserText = ""
     currentConversationAssistantText = ""
@@ -79,17 +81,25 @@ class GeminiSessionViewModel: ObservableObject {
     geminiService.onInputTranscription = { [weak self] text in
       guard let self else { return }
       Task { @MainActor in
-        self.userTranscript += text
+        self.userTranscript = Self.mergeStreamingTranscript(existing: self.userTranscript, incoming: text)
         self.aiTranscript = ""
-        self.currentConversationUserText += text
+        self.currentConversationUserText = Self.mergeStreamingTranscript(
+          existing: self.currentConversationUserText,
+          incoming: text
+        )
+        self.scheduleConversationFlushIfNeeded()
       }
     }
 
     geminiService.onOutputTranscription = { [weak self] text in
       guard let self else { return }
       Task { @MainActor in
-        self.aiTranscript += text
-        self.currentConversationAssistantText += text
+        self.aiTranscript = Self.mergeStreamingTranscript(existing: self.aiTranscript, incoming: text)
+        self.currentConversationAssistantText = Self.mergeStreamingTranscript(
+          existing: self.currentConversationAssistantText,
+          incoming: text
+        )
+        self.scheduleConversationFlushIfNeeded()
       }
     }
 
@@ -207,6 +217,7 @@ class GeminiSessionViewModel: ObservableObject {
     toolCallRouter = nil
     enrichmentTasks.values.forEach { $0.cancel() }
     enrichmentTasks.removeAll()
+    cancelConversationFlushTask()
     flushConferenceConversationIfNeeded()
     audioManager.stopCapture()
     geminiService.disconnect()
@@ -326,11 +337,15 @@ class GeminiSessionViewModel: ObservableObject {
   }
 
   private func flushConferenceConversationIfNeeded() {
-    guard isConferenceModeEnabled, let contactID = activeConferenceContactID else {
+    cancelConversationFlushTask()
+
+    guard isConferenceModeEnabled else {
       currentConversationUserText = ""
       currentConversationAssistantText = ""
       return
     }
+
+    guard let contactID = activeConferenceContactID else { return }
 
     let userSnippet = currentConversationUserText.trimmingCharacters(in: .whitespacesAndNewlines)
     let assistantSnippet = currentConversationAssistantText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -358,6 +373,31 @@ class GeminiSessionViewModel: ObservableObject {
     }
     activeConferenceContactID = contact.id
     activeConferenceContact = contact
+    scheduleConversationFlushIfNeeded()
+  }
+
+  private func scheduleConversationFlushIfNeeded() {
+    cancelConversationFlushTask()
+
+    guard isConferenceModeEnabled, activeConferenceContactID != nil else { return }
+    let hasConversationText = !currentConversationUserText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+      !currentConversationAssistantText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    guard hasConversationText else { return }
+
+    // Flush buffered transcript after a short quiet period so conference chats persist
+    // even when Gemini doesn't produce a clean turnComplete boundary.
+    conversationFlushTask = Task { [weak self] in
+      try? await Task.sleep(nanoseconds: Self.conversationIdleFlushDelayNanoseconds)
+      guard !Task.isCancelled else { return }
+      await MainActor.run {
+        self?.flushConferenceConversationIfNeeded()
+      }
+    }
+  }
+
+  private func cancelConversationFlushTask() {
+    conversationFlushTask?.cancel()
+    conversationFlushTask = nil
   }
 
   private func buildLocalToolResponse(
@@ -378,4 +418,59 @@ class GeminiSessionViewModel: ObservableObject {
     ]
   }
 
+  private static let conversationIdleFlushDelayNanoseconds: UInt64 = 6_000_000_000
+
+  static func mergeStreamingTranscript(existing: String, incoming: String) -> String {
+    let cleanedExisting = existing.trimmingCharacters(in: .whitespacesAndNewlines)
+    let cleanedIncoming = incoming.trimmingCharacters(in: .whitespacesAndNewlines)
+
+    guard !cleanedIncoming.isEmpty else { return cleanedExisting }
+    guard !cleanedExisting.isEmpty else { return cleanedIncoming }
+
+    if cleanedIncoming == cleanedExisting {
+      return cleanedExisting
+    }
+
+    if cleanedIncoming.hasPrefix(cleanedExisting) {
+      return cleanedIncoming
+    }
+
+    if cleanedExisting.hasPrefix(cleanedIncoming) {
+      return cleanedExisting
+    }
+
+    let overlapLength = overlapLength(between: cleanedExisting, and: cleanedIncoming)
+    if overlapLength > 0 {
+      let overlapSuffix = String(cleanedIncoming.dropFirst(overlapLength))
+      return (cleanedExisting + overlapSuffix).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    return joinTranscriptSegments(existing: cleanedExisting, incoming: cleanedIncoming)
+  }
+
+  private static func overlapLength(between existing: String, and incoming: String) -> Int {
+    let maxOverlap = min(existing.count, incoming.count)
+    guard maxOverlap > 0 else { return 0 }
+
+    for length in stride(from: maxOverlap, through: 1, by: -1) {
+      if String(existing.suffix(length)) == String(incoming.prefix(length)) {
+        return length
+      }
+    }
+
+    return 0
+  }
+
+  private static func joinTranscriptSegments(existing: String, incoming: String) -> String {
+    guard let firstIncomingCharacter = incoming.first else { return existing }
+    let needsSeparator = !(existing.last?.isWhitespace ?? false) &&
+      !firstIncomingCharacter.isWhitespace &&
+      !",.!?;:".contains(firstIncomingCharacter)
+
+    if needsSeparator {
+      return "\(existing) \(incoming)"
+    }
+
+    return existing + incoming
+  }
 }
