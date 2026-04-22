@@ -26,12 +26,24 @@ class GeminiSessionViewModel: ObservableObject {
   private var conferenceProcessor = ConferenceExtractionProcessor()
   private var enrichmentTasks: [String: Task<Void, Never>] = [:]
   private var conversationFlushTask: Task<Void, Never>?
+  private var resignActiveObserver: NSObjectProtocol?
+  private var backgroundObserver: NSObjectProtocol?
+  private var foregroundObserver: NSObjectProtocol?
   private var activeConferenceContactID: String?
   private var currentConversationUserText: String = ""
   private var currentConversationAssistantText: String = ""
 
   var streamingMode: StreamingMode = .glasses
   var isConferenceModeEnabled: Bool { SettingsManager.shared.conferenceModeEnabled }
+
+  init() {
+    observeAppLifecycle()
+  }
+
+  deinit {
+    removeAppLifecycleObservers()
+    cancelConversationFlushTask()
+  }
 
   func startSession() async {
     guard !isGeminiActive else { return }
@@ -424,6 +436,71 @@ class GeminiSessionViewModel: ObservableObject {
     currentConversationUserText = ""
     currentConversationAssistantText = ""
     pendingConferenceConversationSnippet = nil
+  }
+
+  private func observeAppLifecycle() {
+    removeAppLifecycleObservers()
+
+    resignActiveObserver = NotificationCenter.default.addObserver(
+      forName: UIApplication.willResignActiveNotification,
+      object: nil,
+      queue: .main
+    ) { [weak self] _ in
+      Task { @MainActor in
+        self?.handleAppWillResignActive()
+      }
+    }
+
+    backgroundObserver = NotificationCenter.default.addObserver(
+      forName: UIApplication.didEnterBackgroundNotification,
+      object: nil,
+      queue: .main
+    ) { [weak self] _ in
+      Task { @MainActor in
+        self?.handleAppDidEnterBackground()
+      }
+    }
+
+    foregroundObserver = NotificationCenter.default.addObserver(
+      forName: UIApplication.willEnterForegroundNotification,
+      object: nil,
+      queue: .main
+    ) { [weak self] _ in
+      Task { @MainActor in
+        self?.handleAppWillEnterForeground()
+      }
+    }
+  }
+
+  private func removeAppLifecycleObservers() {
+    if let observer = resignActiveObserver {
+      NotificationCenter.default.removeObserver(observer)
+      resignActiveObserver = nil
+    }
+    if let observer = backgroundObserver {
+      NotificationCenter.default.removeObserver(observer)
+      backgroundObserver = nil
+    }
+    if let observer = foregroundObserver {
+      NotificationCenter.default.removeObserver(observer)
+      foregroundObserver = nil
+    }
+  }
+
+  private func handleAppWillResignActive() {
+    guard isGeminiActive else { return }
+    flushConferenceConversationIfNeeded()
+  }
+
+  private func handleAppDidEnterBackground() {
+    guard isGeminiActive else { return }
+    flushConferenceConversationIfNeeded()
+  }
+
+  private func handleAppWillEnterForeground() {
+    guard isGeminiActive, let contactID = activeConferenceContactID else { return }
+    activeConferenceContact = conferenceStore.fetchContact(id: contactID) ?? activeConferenceContact
+    refreshPendingConferenceConversationSnippet()
   }
 
   private func refreshPendingConferenceConversationSnippet() {
