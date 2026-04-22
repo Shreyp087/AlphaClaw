@@ -329,6 +329,24 @@ final class ConferenceModeTests: XCTestCase {
     XCTAssertEqual(merged, "Looking forward to chatting")
   }
 
+  func testBuildConversationSnippetIncludesUserAndAssistantLines() {
+    let snippet = GeminiSessionViewModel.buildConversationSnippet(
+      userText: "Great meeting you",
+      assistantText: "She runs Beacon Labs"
+    )
+
+    XCTAssertEqual(snippet, "User: Great meeting you\nAssistant: She runs Beacon Labs")
+  }
+
+  func testBuildConversationSnippetReturnsNilWhenTranscriptIsEmpty() {
+    let snippet = GeminiSessionViewModel.buildConversationSnippet(
+      userText: "   ",
+      assistantText: "\n"
+    )
+
+    XCTAssertNil(snippet)
+  }
+
   private func makeProcessor() -> ConferenceExtractionProcessor {
     ConferenceExtractionProcessor(
       config: ConferenceModeConfig(

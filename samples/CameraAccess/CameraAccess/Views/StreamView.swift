@@ -70,7 +70,10 @@ struct StreamView: View {
             }
 
             if geminiVM.isConferenceModeEnabled, let activeContact = geminiVM.activeConferenceContact {
-              ConferenceActiveContactCard(contact: activeContact)
+              ConferenceActiveContactCard(
+                contact: activeContact,
+                pendingConversationSnippet: geminiVM.pendingConferenceConversationSnippet
+              )
             }
 
             ToolCallStatusView(status: geminiVM.toolCallStatus)

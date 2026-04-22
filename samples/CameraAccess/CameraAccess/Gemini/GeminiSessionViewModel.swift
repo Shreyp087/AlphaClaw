@@ -13,6 +13,7 @@ class GeminiSessionViewModel: ObservableObject {
   @Published var openClawConnectionState: OpenClawConnectionState = .notConfigured
   @Published var lastConferenceExtraction: ConferenceExtraction?
   @Published var activeConferenceContact: ConferenceContact?
+  @Published var pendingConferenceConversationSnippet: String?
   private let geminiService = GeminiLiveService()
   private let openClawBridge = OpenClawBridge()
   private var toolCallRouter: ToolCallRouter?
@@ -43,6 +44,7 @@ class GeminiSessionViewModel: ObservableObject {
     isGeminiActive = true
     lastConferenceExtraction = nil
     activeConferenceContact = nil
+    pendingConferenceConversationSnippet = nil
     conferenceProcessor = ConferenceExtractionProcessor(config: .current)
     cancelConversationFlushTask()
     activeConferenceContactID = nil
@@ -87,6 +89,7 @@ class GeminiSessionViewModel: ObservableObject {
           existing: self.currentConversationUserText,
           incoming: text
         )
+        self.refreshPendingConferenceConversationSnippet()
         self.scheduleConversationFlushIfNeeded()
       }
     }
@@ -99,6 +102,7 @@ class GeminiSessionViewModel: ObservableObject {
           existing: self.currentConversationAssistantText,
           incoming: text
         )
+        self.refreshPendingConferenceConversationSnippet()
         self.scheduleConversationFlushIfNeeded()
       }
     }
@@ -231,6 +235,7 @@ class GeminiSessionViewModel: ObservableObject {
     toolCallStatus = .idle
     lastConferenceExtraction = nil
     activeConferenceContact = nil
+    pendingConferenceConversationSnippet = nil
     activeConferenceContactID = nil
     currentConversationUserText = ""
     currentConversationAssistantText = ""
@@ -347,22 +352,16 @@ class GeminiSessionViewModel: ObservableObject {
 
     guard let contactID = activeConferenceContactID else { return }
 
-    let userSnippet = currentConversationUserText.trimmingCharacters(in: .whitespacesAndNewlines)
-    let assistantSnippet = currentConversationAssistantText.trimmingCharacters(in: .whitespacesAndNewlines)
-
-    var transcriptParts: [String] = []
-    if !userSnippet.isEmpty {
-      transcriptParts.append("User: \(userSnippet)")
-    }
-    if !assistantSnippet.isEmpty {
-      transcriptParts.append("Assistant: \(assistantSnippet)")
-    }
+    let mergedSnippet = Self.buildConversationSnippet(
+      userText: currentConversationUserText,
+      assistantText: currentConversationAssistantText
+    )
 
     currentConversationUserText = ""
     currentConversationAssistantText = ""
+    refreshPendingConferenceConversationSnippet()
 
-    let mergedSnippet = transcriptParts.joined(separator: "\n")
-    guard !mergedSnippet.isEmpty else { return }
+    guard let mergedSnippet else { return }
     conferenceStore.appendConversationSnippet(contactID: contactID, snippet: mergedSnippet)
     activeConferenceContact = conferenceStore.fetchContact(id: contactID) ?? activeConferenceContact
   }
@@ -398,6 +397,13 @@ class GeminiSessionViewModel: ObservableObject {
   private func cancelConversationFlushTask() {
     conversationFlushTask?.cancel()
     conversationFlushTask = nil
+  }
+
+  private func refreshPendingConferenceConversationSnippet() {
+    pendingConferenceConversationSnippet = Self.buildConversationSnippet(
+      userText: currentConversationUserText,
+      assistantText: currentConversationAssistantText
+    )
   }
 
   private func buildLocalToolResponse(
@@ -446,6 +452,22 @@ class GeminiSessionViewModel: ObservableObject {
     }
 
     return joinTranscriptSegments(existing: cleanedExisting, incoming: cleanedIncoming)
+  }
+
+  static func buildConversationSnippet(userText: String, assistantText: String) -> String? {
+    let userSnippet = userText.trimmingCharacters(in: .whitespacesAndNewlines)
+    let assistantSnippet = assistantText.trimmingCharacters(in: .whitespacesAndNewlines)
+
+    var transcriptParts: [String] = []
+    if !userSnippet.isEmpty {
+      transcriptParts.append("User: \(userSnippet)")
+    }
+    if !assistantSnippet.isEmpty {
+      transcriptParts.append("Assistant: \(assistantSnippet)")
+    }
+
+    let mergedSnippet = transcriptParts.joined(separator: "\n")
+    return mergedSnippet.isEmpty ? nil : mergedSnippet
   }
 
   private static func overlapLength(between existing: String, and incoming: String) -> Int {

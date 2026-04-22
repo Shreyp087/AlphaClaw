@@ -197,6 +197,7 @@ struct ConferenceExtractionCard: View {
 
 struct ConferenceActiveContactCard: View {
   let contact: ConferenceContact
+  let pendingConversationSnippet: String?
 
   var body: some View {
     VStack(alignment: .leading, spacing: 6) {
@@ -220,7 +221,21 @@ struct ConferenceActiveContactCard: View {
           .foregroundColor(.white.opacity(0.85))
       }
 
-      if contact.hasConversationSnippet {
+      if let pendingConversationSnippet, !pendingConversationSnippet.isEmpty {
+        HStack(spacing: 6) {
+          Text("Live")
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundColor(.cyan)
+          Text("Capturing now")
+            .font(.system(size: 11))
+            .foregroundColor(.white.opacity(0.7))
+        }
+
+        Text(pendingConversationSnippet)
+          .font(.system(size: 12))
+          .foregroundColor(.white.opacity(0.8))
+          .lineLimit(3)
+      } else if contact.hasConversationSnippet {
         Text(contact.conversationSnippet ?? "")
           .font(.system(size: 12))
           .foregroundColor(.white.opacity(0.72))
